@@ -14,8 +14,7 @@ type MyType struct {
 }
 
 func main() {
-	var seed int64 = 10
-	if err := internal.Run(actor.NewEngineConfig(), initialize, &seed); err != nil {
+	if err := internal.Run(initialize, internal.WithNumRounds(1)); err != nil {
 		log.Println(err.Error())
 	}
 }
@@ -36,10 +35,5 @@ func testActorProducer() actor.Producer {
 }
 
 func (a *testActor) Receive(act *actor.Context) {
-	// log.Printf("%+v", act.Message())
-	switch msg := act.Message().(type) {
-	case int:
-		result := 1 / (msg % 2)
-		log.Println(result)
-	}
+	log.Printf("%+v", act.Message())
 }

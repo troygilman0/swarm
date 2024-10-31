@@ -2,7 +2,6 @@ package internal
 
 import (
 	"fmt"
-	"reflect"
 	"sync"
 	"time"
 
@@ -11,98 +10,18 @@ import (
 	"github.com/anthdm/hollywood/actor"
 )
 
-type Swarm struct {
-	producers []producer
-}
-
-func NewSwarm(opts ...SwarmOption) Swarm {
-	swarm := Swarm{}
-	for _, opt := range opts {
-		opt(swarm)
-	}
-	return swarm
-}
-
-type SwarmOption func(swarm Swarm)
-
-func WithMessage(msg any) SwarmOption {
-	return func(swarm Swarm) {
-		v := reflect.ValueOf(msg)
-		swarm.producers = append(swarm.producers, newProducer(v))
-	}
-}
-
-func newProducer(v reflect.Value) producer {
-	return func() any {
-		if v.Kind() != reflect.Ptr || v.IsNil() {
-			return nil
-		}
-
-		v = v.Elem()
-		if v.Kind() != reflect.Struct {
-			return nil
-		}
-
-		fields := []reflect.Value{}
-		for i := range v.NumField() {
-			field := v.Field(i)
-			if !field.IsValid() {
-				return nil
-			}
-			if !field.CanSet() {
-				return nil
-			}
-
-			fields = append(fields, field)
-		}
-		return nil
-	}
-}
-
-func populateValue(v reflect.Value) {
-
-}
-
-type producer func() any
-
-func Run(config actor.EngineConfig, initializer func(*actor.Engine) error, seed *int64) error {
-	if seed == nil {
-		s := time.Now().UnixNano()
-		seed = &s
-	}
-
-	engine, err := actor.NewEngine(config)
-	if err != nil {
-		return err
-	}
-
-	done := make(chan error)
-	engine.Spawn(swarmProducer(done, *seed, 5), "swarm")
-
-	if err := initializer(engine); err != nil {
-		return err
-	}
-
-	err = <-done
-	return err
-}
-
 type swarm struct {
-	done      chan<- error
-	err       error
-	seed      int64
-	random    *rand.Rand
-	numRounds int
-	round     int
-	pids      []*actor.PID
+	swarmConfig
+	err    error
+	random *rand.Rand
+	round  int
+	pids   []*actor.PID
 }
 
-func swarmProducer(done chan<- error, seed int64, numRounds int) actor.Producer {
+func swarmProducer(config swarmConfig) actor.Producer {
 	return func() actor.Receiver {
 		return &swarm{
-			done:      done,
-			seed:      seed,
-			numRounds: numRounds,
+			swarmConfig: config,
 		}
 	}
 }
@@ -146,10 +65,14 @@ func (s *swarm) Receive(act *actor.Context) {
 			break
 		}
 		for _, pid := range s.pids {
-			act.Send(pid, s.random.Int())
+			act.Send(pid, randomize(TestMsg{}, s.random))
 		}
 		s.round++
 	}
 }
 
 type sendMessagesMsg struct{}
+
+type TestMsg struct {
+	Str string
+}
