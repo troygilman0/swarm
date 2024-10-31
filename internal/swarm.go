@@ -5,17 +5,15 @@ import (
 	"sync"
 	"time"
 
-	"math/rand"
-
 	"github.com/anthdm/hollywood/actor"
 )
 
 type swarm struct {
 	swarmConfig
-	err    error
-	random *rand.Rand
-	round  int
-	pids   []*actor.PID
+	err      error
+	rand     random
+	msgCount int
+	pids     []*actor.PID
 }
 
 func swarmProducer(config swarmConfig) actor.Producer {
@@ -30,8 +28,8 @@ func (s *swarm) Receive(act *actor.Context) {
 	switch msg := act.Message().(type) {
 	case actor.Initialized:
 		s.err = nil
-		s.round = 0
-		s.random = rand.New(rand.NewSource(s.seed))
+		s.msgCount = 0
+		s.rand = newRandom(s.seed)
 		s.pids = []*actor.PID{}
 
 	case actor.Started:
@@ -56,18 +54,18 @@ func (s *swarm) Receive(act *actor.Context) {
 		if s.err != nil {
 			break
 		}
-		s.err = fmt.Errorf("actor %s crashed at round %d with seed %d", msg.PID.String(), s.round, s.seed)
+		s.err = fmt.Errorf("actor %s crashed at msg %d with seed %d", msg.PID.String(), s.msgCount, s.seed)
 		act.Engine().Stop(act.PID())
 
 	case sendMessagesMsg:
-		if s.round >= s.numRounds {
+		if s.msgCount >= s.numMsgs {
 			act.Engine().Stop(act.PID())
 			break
 		}
-		for _, pid := range s.pids {
-			act.Send(pid, randomize(TestMsg{}, s.random))
-		}
-		s.round++
+		pid := s.pids[s.rand.Intn(len(s.pids))]
+		newMsgType := s.msgTypes[s.rand.Intn(len(s.msgTypes))]
+		act.Send(pid, s.rand.newRandomValue(newMsgType))
+		s.msgCount++
 	}
 }
 

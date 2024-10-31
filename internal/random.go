@@ -5,44 +5,50 @@ import (
 	"reflect"
 )
 
-func randomize(a any, r *rand.Rand) any {
-	v := reflect.New(reflect.TypeOf(a))
-	randomizeValue(v.Elem(), r)
-	return v.Interface()
+type random struct {
+	*rand.Rand
 }
 
-func randomizeValue(v reflect.Value, r *rand.Rand) {
+func newRandom(seed int64) random {
+	return random{
+		Rand: rand.New(rand.NewSource(seed)),
+	}
+}
+
+func (r random) newRandomValue(typ reflect.Type) any {
+	v := reflect.New(typ)
+	r.randomizeValue(v.Elem())
+	return v.Elem().Interface()
+}
+
+func (r random) randomizeValue(v reflect.Value) {
+	if r.Rand.Intn(4) == 0 {
+		return
+	}
+
 	switch v.Kind() {
 	case reflect.Ptr:
-		randomizePointer(v, r)
+		r.randomizeValue(v.Elem())
+
 	case reflect.Struct:
-		randomizeStruct(v, r)
+		for i := range v.NumField() {
+			field := v.Field(i)
+			if !field.IsValid() {
+				continue
+			}
+			if !field.CanSet() {
+				continue
+			}
+			r.randomizeValue(field)
+		}
+
 	case reflect.String:
-		randomizeString(v, r)
-	}
-}
+		buff := make([]byte, r.Rand.Intn(100))
+		r.Rand.Read(buff)
+		v.SetString(string(buff))
 
-func randomizePointer(v reflect.Value, r *rand.Rand) {
-	if r.Intn(2) == 0 {
-		randomizeValue(v.Elem(), r)
-	}
-}
+	case reflect.Int:
+		v.SetInt(r.Rand.Int63())
 
-func randomizeStruct(v reflect.Value, r *rand.Rand) {
-	for i := range v.NumField() {
-		field := v.Field(i)
-		if !field.IsValid() {
-			continue
-		}
-		if !field.CanSet() {
-			continue
-		}
-		randomizeValue(field, r)
 	}
-}
-
-func randomizeString(v reflect.Value, r *rand.Rand) {
-	buff := make([]byte, r.Intn(100))
-	r.Read(buff)
-	v.SetString(string(buff))
 }

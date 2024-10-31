@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"reflect"
 	"time"
 
 	"github.com/anthdm/hollywood/actor"
@@ -9,8 +10,9 @@ import (
 type swarmConfig struct {
 	done         chan<- error
 	seed         int64
-	numRounds    int
+	numMsgs      int
 	engineConfig actor.EngineConfig
+	msgTypes     []reflect.Type
 }
 
 type SwarmOption func(swarmConfig) swarmConfig
@@ -22,15 +24,18 @@ func WithSeed(seed int64) SwarmOption {
 	}
 }
 
-func WithNumRounds(numRounds int) SwarmOption {
+func WithNumMsgs(numMsgs int) SwarmOption {
 	return func(sc swarmConfig) swarmConfig {
-		sc.numRounds = numRounds
+		sc.numMsgs = numMsgs
 		return sc
 	}
 }
 
-func WithMessage(msg any) SwarmOption {
+func WithMessages(msgs ...any) SwarmOption {
 	return func(sc swarmConfig) swarmConfig {
+		for _, msg := range msgs {
+			sc.msgTypes = append(sc.msgTypes, reflect.TypeOf(msg))
+		}
 		return sc
 	}
 }
@@ -40,7 +45,7 @@ func Run(initializer func(*actor.Engine) error, opts ...SwarmOption) error {
 	config := swarmConfig{
 		done:         done,
 		seed:         time.Now().UnixNano(),
-		numRounds:    100,
+		numMsgs:      100,
 		engineConfig: actor.NewEngineConfig(),
 	}
 
