@@ -64,7 +64,7 @@ func (s *swarm) Receive(act *actor.Context) {
 		}
 		pid := s.pids[s.rand.Intn(len(s.pids))]
 		newMsgType := s.msgTypes[s.rand.Intn(len(s.msgTypes))]
-		act.Send(pid, s.rand.newRandomValue(newMsgType))
+		act.Send(pid, s.rand.Any(newMsgType))
 		s.msgCount++
 	}
 }

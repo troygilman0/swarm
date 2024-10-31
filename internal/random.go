@@ -17,13 +17,13 @@ func newRandom(seed int64) random {
 	}
 }
 
-func (r random) newRandomValue(typ reflect.Type) any {
+func (r random) Any(typ reflect.Type) any {
 	v := reflect.New(typ)
-	r.randomizeValue(v.Elem())
+	r.value(v.Elem())
 	return v.Elem().Interface()
 }
 
-func (r random) randomizeValue(v reflect.Value) {
+func (r random) value(v reflect.Value) {
 	if r.Intn(4) == 0 {
 		return
 	}
@@ -31,7 +31,7 @@ func (r random) randomizeValue(v reflect.Value) {
 	kind := v.Kind()
 	switch kind {
 	case reflect.Ptr:
-		r.randomizeValue(v.Elem())
+		r.value(v.Elem())
 
 	case reflect.Struct:
 		for i := range v.NumField() {
@@ -42,7 +42,7 @@ func (r random) randomizeValue(v reflect.Value) {
 			if !field.CanSet() {
 				continue
 			}
-			r.randomizeValue(field)
+			r.value(field)
 		}
 
 	case reflect.String:
@@ -59,7 +59,7 @@ func (r random) randomizeValue(v reflect.Value) {
 			v.SetLen(v.Cap())
 		}
 		for i := range v.Len() {
-			r.randomizeValue(v.Index(i))
+			r.value(v.Index(i))
 		}
 
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
