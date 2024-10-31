@@ -7,12 +7,6 @@ import (
 	"github.com/anthdm/hollywood/actor"
 )
 
-type MyType struct {
-	Param1 string
-	Param2 int
-	Param3 bool
-}
-
 func main() {
 	if err := internal.Run(
 		initialize,
@@ -31,8 +25,13 @@ func initialize(engine *actor.Engine) error {
 }
 
 type testMsg struct {
-	Str string
-	Int int
+	Str   string
+	Int   int
+	Uint  uint
+	Float float64
+	Bool  bool
+	Slice []int
+	Array [10]int
 }
 
 type testActor struct{}
