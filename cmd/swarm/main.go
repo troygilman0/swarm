@@ -12,7 +12,7 @@ func main() {
 		initialize,
 		swarm.WithSeed(0),
 		swarm.WithNumMsgs(100),
-		swarm.WithMessages(testMsg{}),
+		swarm.WithMessages(&TestMsg{}),
 	); err != nil {
 		log.Println(err)
 	}
@@ -24,7 +24,7 @@ func initialize(engine *actor.Engine) {
 	}
 }
 
-type testMsg struct {
+type TestMsg struct {
 	Str   string
 	Int   int
 	Uint  uint

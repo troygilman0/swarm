@@ -24,13 +24,14 @@ func (r Random) Any(typ reflect.Type) any {
 }
 
 func (r Random) value(v reflect.Value) {
-	if r.Intn(4) == 0 {
+	if r.Intn(10) == 0 {
 		return
 	}
 
 	kind := v.Kind()
 	switch kind {
 	case reflect.Ptr:
+		v.Set(reflect.New(v.Type().Elem()))
 		r.value(v.Elem())
 
 	case reflect.Struct:
