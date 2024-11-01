@@ -24,6 +24,7 @@ type swarm struct {
 	rand     random.Random
 	msgCount uint64
 	pids     []*actor.PID
+	repeater actor.SendRepeater
 }
 
 func NewSwarmProducer(config SwarmConfig) actor.Producer {
@@ -44,15 +45,18 @@ func (s *swarm) Receive(act *actor.Context) {
 
 	case actor.Started:
 		act.Engine().Subscribe(act.PID())
-		act.SendRepeat(act.PID(), sendMessagesMsg{}, time.Millisecond)
+		s.repeater = act.SendRepeat(act.PID(), sendMessagesMsg{}, time.Millisecond)
 
 	case actor.Stopped:
+		act.Engine().Unsubscribe(act.PID())
+		s.repeater.Stop()
 		wg := &sync.WaitGroup{}
 		for _, pid := range s.pids {
 			act.Engine().Stop(pid, wg)
 		}
 		wg.Wait()
 		s.Done <- s.err
+		close(s.Done)
 
 	case actor.ActorStartedEvent:
 		if msg.PID == act.PID() {
@@ -70,6 +74,9 @@ func (s *swarm) Receive(act *actor.Context) {
 	case sendMessagesMsg:
 		if s.msgCount >= s.NumMsgs {
 			act.Engine().Stop(act.PID())
+			break
+		}
+		if len(s.pids) == 0 {
 			break
 		}
 		pid := s.pids[s.rand.Intn(len(s.pids))]
