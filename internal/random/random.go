@@ -1,29 +1,29 @@
-package internal
+package random
 
 import (
 	"math/rand"
 	"reflect"
 )
 
-type random struct {
+type Random struct {
 	*rand.Rand
 	maxSliceLen int
 }
 
-func newRandom(seed int64) random {
-	return random{
-		Rand:        rand.New(rand.NewSource(seed)),
-		maxSliceLen: 100,
+func NewRandom(src rand.Source) Random {
+	return Random{
+		Rand:        rand.New(src),
+		maxSliceLen: 10,
 	}
 }
 
-func (r random) Any(typ reflect.Type) any {
+func (r Random) Any(typ reflect.Type) any {
 	v := reflect.New(typ)
 	r.value(v.Elem())
 	return v.Elem().Interface()
 }
 
-func (r random) value(v reflect.Value) {
+func (r Random) value(v reflect.Value) {
 	if r.Intn(4) == 0 {
 		return
 	}

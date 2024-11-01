@@ -1,27 +1,26 @@
-package main
+package swarm
 
 import (
-	"log"
-	"swarm/internal"
+	"testing"
 
 	"github.com/anthdm/hollywood/actor"
 )
 
-func main() {
-	if err := internal.Run(
+func TestStarm(t *testing.T) {
+	if err := Run(
 		initialize,
-		internal.WithNumMsgs(1000),
-		internal.WithMessages(testMsg{}),
+		WithSeed(0),
+		WithNumMsgs(100),
+		WithMessages(testMsg{}),
 	); err != nil {
-		log.Println(err.Error())
+		t.Error(err)
 	}
 }
 
-func initialize(engine *actor.Engine) error {
+func initialize(engine *actor.Engine) {
 	for range 10 {
 		engine.Spawn(testActorProducer(), "testActor")
 	}
-	return nil
 }
 
 type testMsg struct {
@@ -46,6 +45,6 @@ func (a *testActor) Receive(act *actor.Context) {
 	switch act.Message().(type) {
 	case actor.Initialized, actor.Started, actor.Stopped:
 	default:
-		log.Printf("%T - %+v", act.Message(), act.Message())
+		// log.Printf("%T - %+v", act.Message(), act.Message())
 	}
 }

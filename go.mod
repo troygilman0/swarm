@@ -1,6 +1,6 @@
 module swarm
 
-go 1.22.2
+go 1.22.0
 
 require github.com/anthdm/hollywood v1.0.2
 

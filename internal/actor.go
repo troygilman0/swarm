@@ -2,24 +2,34 @@ package internal
 
 import (
 	"fmt"
+	"math/rand"
+	"reflect"
+	"swarm/internal/random"
 	"sync"
 	"time"
 
 	"github.com/anthdm/hollywood/actor"
 )
 
+type SwarmConfig struct {
+	Done     chan<- error
+	Seed     int64
+	NumMsgs  uint64
+	MsgTypes []reflect.Type
+}
+
 type swarm struct {
-	swarmConfig
+	SwarmConfig
 	err      error
-	rand     random
-	msgCount int
+	rand     random.Random
+	msgCount uint64
 	pids     []*actor.PID
 }
 
-func swarmProducer(config swarmConfig) actor.Producer {
+func NewSwarmProducer(config SwarmConfig) actor.Producer {
 	return func() actor.Receiver {
 		return &swarm{
-			swarmConfig: config,
+			SwarmConfig: config,
 		}
 	}
 }
@@ -29,7 +39,7 @@ func (s *swarm) Receive(act *actor.Context) {
 	case actor.Initialized:
 		s.err = nil
 		s.msgCount = 0
-		s.rand = newRandom(s.seed)
+		s.rand = random.NewRandom(rand.NewSource(s.Seed))
 		s.pids = []*actor.PID{}
 
 	case actor.Started:
@@ -42,7 +52,7 @@ func (s *swarm) Receive(act *actor.Context) {
 			act.Engine().Stop(pid, wg)
 		}
 		wg.Wait()
-		s.done <- s.err
+		s.Done <- s.err
 
 	case actor.ActorStartedEvent:
 		if msg.PID == act.PID() {
@@ -54,23 +64,19 @@ func (s *swarm) Receive(act *actor.Context) {
 		if s.err != nil {
 			break
 		}
-		s.err = fmt.Errorf("actor %s crashed at msg %d with seed %d", msg.PID.String(), s.msgCount, s.seed)
+		s.err = fmt.Errorf("actor %s crashed at msg %d with seed %d", msg.PID.String(), s.msgCount, s.Seed)
 		act.Engine().Stop(act.PID())
 
 	case sendMessagesMsg:
-		if s.msgCount >= s.numMsgs {
+		if s.msgCount >= s.NumMsgs {
 			act.Engine().Stop(act.PID())
 			break
 		}
 		pid := s.pids[s.rand.Intn(len(s.pids))]
-		newMsgType := s.msgTypes[s.rand.Intn(len(s.msgTypes))]
+		newMsgType := s.MsgTypes[s.rand.Intn(len(s.MsgTypes))]
 		act.Send(pid, s.rand.Any(newMsgType))
 		s.msgCount++
 	}
 }
 
 type sendMessagesMsg struct{}
-
-type TestMsg struct {
-	Str string
-}
