@@ -11,11 +11,12 @@ import (
 func main() {
 	if err := swarm.Run(
 		initialize,
-		// swarm.WithSeed(0),
+		[]any{
+			&TestMsg{},
+		},
 		swarm.WithNumMsgs(1000),
-		swarm.WithMessages(&TestMsg{}),
 		swarm.WithParellel(10),
-		swarm.WithInterval(time.Nanosecond),
+		swarm.WithInterval(time.Millisecond),
 	); err != nil {
 		log.Println(err)
 	}

@@ -9,9 +9,9 @@ import (
 func TestStarm(t *testing.T) {
 	if err := Run(
 		initialize,
+		[]any{testMsg{}},
 		WithSeed(0),
 		WithNumMsgs(100),
-		WithMessages(testMsg{}),
 	); err != nil {
 		t.Error(err)
 	}

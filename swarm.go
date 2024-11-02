@@ -1,6 +1,7 @@
 package swarm
 
 import (
+	"fmt"
 	"log"
 	"reflect"
 	"swarm/internal"
@@ -9,7 +10,12 @@ import (
 	"github.com/anthdm/hollywood/actor"
 )
 
-func Run(init Initializer, opts ...Option) error {
+func Run(init Initializer, msgs []any, opts ...Option) error {
+	opts = append(opts,
+		withInitializer(init),
+		withMessages(msgs),
+	)
+
 	config := options(opts).apply(Config{
 		parallelRounds: 1,
 	})
@@ -24,7 +30,7 @@ func Run(init Initializer, opts ...Option) error {
 				break
 			}
 			log.Printf("Starting round %d\n", round)
-			go runRound(init, opts, round, results)
+			go runRound(opts, round, results)
 			round++
 			roundsRunning++
 		} else {
@@ -40,7 +46,7 @@ func Run(init Initializer, opts ...Option) error {
 	return nil
 }
 
-func runRound(init Initializer, opts options, round uint64, results chan<- result) {
+func runRound(opts options, round uint64, results chan<- result) {
 	var err error
 	start := time.Now()
 	defer func() {
@@ -52,7 +58,7 @@ func runRound(init Initializer, opts options, round uint64, results chan<- resul
 	}()
 
 	done := make(chan error)
-	config := Config{
+	config := opts.apply(Config{
 		engineConfig: actor.NewEngineConfig(),
 		SwarmConfig: internal.SwarmConfig{
 			Done:     done,
@@ -60,9 +66,12 @@ func runRound(init Initializer, opts options, round uint64, results chan<- resul
 			NumMsgs:  100,
 			Interval: time.Millisecond,
 		},
-	}
+	})
 
-	config = options(opts).apply(config)
+	if config.SwarmConfig.Interval == 0 {
+		err = fmt.Errorf("interval cannot be 0")
+		return
+	}
 
 	var engine *actor.Engine
 	engine, err = actor.NewEngine(config.engineConfig)
@@ -72,9 +81,11 @@ func runRound(init Initializer, opts options, round uint64, results chan<- resul
 
 	engine.Spawn(internal.NewSwarmProducer(config.SwarmConfig), "swarm")
 
-	init(engine)
-
+	cleanup := config.init(engine)
 	err = <-done
+	if cleanup != nil {
+		cleanup()
+	}
 }
 
 type Initializer func(*actor.Engine) func()
@@ -86,6 +97,7 @@ type result struct {
 }
 
 type Config struct {
+	init           Initializer
 	engineConfig   actor.EngineConfig
 	numRounds      uint64
 	parallelRounds uint64
@@ -117,11 +129,18 @@ func WithNumMsgs(numMsgs uint64) Option {
 	}
 }
 
-func WithMessages(msgs ...any) Option {
+func withMessages(msgs []any) Option {
 	return func(c Config) Config {
 		for _, msg := range msgs {
 			c.MsgTypes = append(c.MsgTypes, reflect.TypeOf(msg))
 		}
+		return c
+	}
+}
+
+func withInitializer(init Initializer) Option {
+	return func(c Config) Config {
+		c.init = init
 		return c
 	}
 }
