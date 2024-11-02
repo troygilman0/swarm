@@ -15,11 +15,13 @@ type SwarmConfig struct {
 	Done     chan<- error
 	Seed     int64
 	NumMsgs  uint64
+	Interval time.Duration
 	MsgTypes []reflect.Type
 }
 
 type swarm struct {
 	SwarmConfig
+	stopping bool
 	err      error
 	rand     random.Random
 	msgCount uint64
@@ -36,6 +38,10 @@ func NewSwarmProducer(config SwarmConfig) actor.Producer {
 }
 
 func (s *swarm) Receive(act *actor.Context) {
+	if _, ok := act.Message().(actor.Stopped); !ok && s.stopping {
+		return
+	}
+
 	switch msg := act.Message().(type) {
 	case actor.Initialized:
 		s.err = nil
@@ -45,7 +51,7 @@ func (s *swarm) Receive(act *actor.Context) {
 
 	case actor.Started:
 		act.Engine().Subscribe(act.PID())
-		s.repeater = act.SendRepeat(act.PID(), sendMessagesMsg{}, time.Millisecond)
+		s.repeater = act.SendRepeat(act.PID(), sendMessagesMsg{}, s.Interval)
 
 	case actor.Stopped:
 		act.Engine().Unsubscribe(act.PID())
@@ -69,10 +75,12 @@ func (s *swarm) Receive(act *actor.Context) {
 			break
 		}
 		s.err = fmt.Errorf("actor %s crashed at msg %d with seed %d", msg.PID.String(), s.msgCount, s.Seed)
+		s.stopping = true
 		act.Engine().Stop(act.PID())
 
 	case sendMessagesMsg:
 		if s.msgCount >= s.NumMsgs {
+			s.stopping = true
 			act.Engine().Stop(act.PID())
 			break
 		}

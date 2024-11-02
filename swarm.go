@@ -9,53 +9,86 @@ import (
 	"github.com/anthdm/hollywood/actor"
 )
 
-func Run(init func(*actor.Engine), opts ...Option) error {
-	config := options(opts).apply(Config{})
+func Run(init Initializer, opts ...Option) error {
+	config := options(opts).apply(Config{
+		parallelRounds: 1,
+	})
 
 	var round uint64
+	var roundsRunning uint64
+	results := make(chan result)
+
 	for {
-		if config.numRounds > 0 && round >= config.numRounds {
-			break
+		if roundsRunning < config.parallelRounds {
+			if config.numRounds > 0 && round >= config.numRounds && roundsRunning == 0 {
+				break
+			}
+			log.Printf("Starting round %d\n", round)
+			go runRound(init, opts, round, results)
+			round++
+			roundsRunning++
+		} else {
+			result := <-results
+			if result.err != nil {
+				return result.err
+			}
+			log.Printf("Run round %d in %f seconds\n", result.round, result.duration.Seconds())
+			roundsRunning--
 		}
-		start := time.Now()
-		if err := runRound(init, opts); err != nil {
-			return err
-		}
-		log.Printf("Ran round %d in %f seconds", round, time.Since(start).Seconds())
-		round++
 	}
 
 	return nil
 }
 
-func runRound(init func(*actor.Engine), opts options) error {
+func runRound(init Initializer, opts options, round uint64, results chan<- result) {
+	var err error
+	start := time.Now()
+	defer func() {
+		results <- result{
+			round:    round,
+			duration: time.Since(start),
+			err:      err,
+		}
+	}()
+
 	done := make(chan error)
 	config := Config{
 		engineConfig: actor.NewEngineConfig(),
 		SwarmConfig: internal.SwarmConfig{
-			Done:    done,
-			Seed:    time.Now().UnixNano(),
-			NumMsgs: 100,
+			Done:     done,
+			Seed:     time.Now().UnixNano(),
+			NumMsgs:  100,
+			Interval: time.Millisecond,
 		},
 	}
 
 	config = options(opts).apply(config)
 
-	engine, err := actor.NewEngine(config.engineConfig)
+	var engine *actor.Engine
+	engine, err = actor.NewEngine(config.engineConfig)
 	if err != nil {
-		return err
+		return
 	}
 
 	engine.Spawn(internal.NewSwarmProducer(config.SwarmConfig), "swarm")
 
 	init(engine)
 
-	return <-done
+	err = <-done
+}
+
+type Initializer func(*actor.Engine) func()
+
+type result struct {
+	round    uint64
+	duration time.Duration
+	err      error
 }
 
 type Config struct {
-	engineConfig actor.EngineConfig
-	numRounds    uint64
+	engineConfig   actor.EngineConfig
+	numRounds      uint64
+	parallelRounds uint64
 	internal.SwarmConfig
 }
 
@@ -103,6 +136,20 @@ func WithNumRounds(numRounds uint64) Option {
 func WithEngineConfig(config actor.EngineConfig) Option {
 	return func(c Config) Config {
 		c.engineConfig = config
+		return c
+	}
+}
+
+func WithParellel(parallelRounds uint64) Option {
+	return func(c Config) Config {
+		c.parallelRounds = parallelRounds
+		return c
+	}
+}
+
+func WithInterval(interval time.Duration) Option {
+	return func(c Config) Config {
+		c.Interval = interval
 		return c
 	}
 }

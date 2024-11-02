@@ -17,10 +17,11 @@ func TestStarm(t *testing.T) {
 	}
 }
 
-func initialize(engine *actor.Engine) {
+func initialize(engine *actor.Engine) func() {
 	for range 10 {
 		engine.Spawn(testActorProducer(), "testActor")
 	}
+	return nil
 }
 
 type testMsg struct {
