@@ -11,7 +11,7 @@ import (
 	"github.com/anthdm/hollywood/actor"
 )
 
-type SwarmConfig struct {
+type SimulatorConfig struct {
 	Done     chan<- error
 	Seed     int64
 	NumMsgs  uint64
@@ -19,9 +19,8 @@ type SwarmConfig struct {
 	MsgTypes []reflect.Type
 }
 
-type swarm struct {
-	SwarmConfig
-	stopping bool
+type simulator struct {
+	SimulatorConfig
 	err      error
 	rand     random.Random
 	msgCount uint64
@@ -29,19 +28,15 @@ type swarm struct {
 	repeater actor.SendRepeater
 }
 
-func NewSwarmProducer(config SwarmConfig) actor.Producer {
+func NewSimulatorProducer(config SimulatorConfig) actor.Producer {
 	return func() actor.Receiver {
-		return &swarm{
-			SwarmConfig: config,
+		return &simulator{
+			SimulatorConfig: config,
 		}
 	}
 }
 
-func (s *swarm) Receive(act *actor.Context) {
-	if _, ok := act.Message().(actor.Stopped); !ok && s.stopping {
-		return
-	}
-
+func (s *simulator) Receive(act *actor.Context) {
 	switch msg := act.Message().(type) {
 	case actor.Initialized:
 		s.err = nil
@@ -71,16 +66,17 @@ func (s *swarm) Receive(act *actor.Context) {
 		s.pids = append(s.pids, msg.PID)
 
 	case actor.ActorRestartedEvent:
+		if msg.PID == act.PID() {
+			break
+		}
 		if s.err != nil {
 			break
 		}
 		s.err = fmt.Errorf("actor %s crashed at msg %d with seed %d", msg.PID.String(), s.msgCount, s.Seed)
-		s.stopping = true
 		act.Engine().Stop(act.PID())
 
 	case sendMessagesMsg:
 		if s.msgCount >= s.NumMsgs {
-			s.stopping = true
 			act.Engine().Stop(act.PID())
 			break
 		}

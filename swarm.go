@@ -3,7 +3,6 @@ package swarm
 import (
 	"fmt"
 	"log"
-	"reflect"
 	"swarm/internal"
 	"time"
 
@@ -60,7 +59,7 @@ func runRound(opts options, round uint64, results chan<- result) {
 	done := make(chan error)
 	config := opts.apply(Config{
 		engineConfig: actor.NewEngineConfig(),
-		SwarmConfig: internal.SwarmConfig{
+		SimulatorConfig: internal.SimulatorConfig{
 			Done:     done,
 			Seed:     time.Now().UnixNano(),
 			NumMsgs:  100,
@@ -68,7 +67,7 @@ func runRound(opts options, round uint64, results chan<- result) {
 		},
 	})
 
-	if config.SwarmConfig.Interval == 0 {
+	if config.SimulatorConfig.Interval == 0 {
 		err = fmt.Errorf("interval cannot be 0")
 		return
 	}
@@ -79,96 +78,11 @@ func runRound(opts options, round uint64, results chan<- result) {
 		return
 	}
 
-	engine.Spawn(internal.NewSwarmProducer(config.SwarmConfig), "swarm")
+	engine.Spawn(internal.NewSimulatorProducer(config.SimulatorConfig), "swarm-simulator")
 
 	cleanup := config.init(engine)
 	err = <-done
 	if cleanup != nil {
 		cleanup()
-	}
-}
-
-type Initializer func(*actor.Engine) func()
-
-type result struct {
-	round    uint64
-	duration time.Duration
-	err      error
-}
-
-type Config struct {
-	init           Initializer
-	engineConfig   actor.EngineConfig
-	numRounds      uint64
-	parallelRounds uint64
-	internal.SwarmConfig
-}
-
-type Option func(Config) Config
-
-type options []Option
-
-func (opts options) apply(config Config) Config {
-	for _, opt := range opts {
-		config = opt(config)
-	}
-	return config
-}
-
-func WithSeed(seed int64) Option {
-	return func(c Config) Config {
-		c.Seed = seed
-		return c
-	}
-}
-
-func WithNumMsgs(numMsgs uint64) Option {
-	return func(c Config) Config {
-		c.NumMsgs = numMsgs
-		return c
-	}
-}
-
-func withMessages(msgs []any) Option {
-	return func(c Config) Config {
-		for _, msg := range msgs {
-			c.MsgTypes = append(c.MsgTypes, reflect.TypeOf(msg))
-		}
-		return c
-	}
-}
-
-func withInitializer(init Initializer) Option {
-	return func(c Config) Config {
-		c.init = init
-		return c
-	}
-}
-
-func WithNumRounds(numRounds uint64) Option {
-	return func(c Config) Config {
-		c.numRounds = numRounds
-		return c
-	}
-}
-
-func WithEngineConfig(config actor.EngineConfig) Option {
-	return func(c Config) Config {
-		c.engineConfig = config
-		return c
-	}
-}
-
-func WithParellel(parallelRounds uint64) Option {
-	return func(c Config) Config {
-		c.parallelRounds = parallelRounds
-		return c
-	}
-}
-
-func WithInterval(interval time.Duration) Option {
-	return func(c Config) Config {
-		c.Interval = interval
-		return c
 	}
 }
