@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"strings"
 	"swarm"
 	"time"
 
@@ -12,7 +13,7 @@ func main() {
 	if err := swarm.Run(
 		initialize,
 		[]any{
-			&TestMsg{},
+			TestMsg{},
 		},
 		swarm.WithNumMsgs(1000),
 		swarm.WithParellel(10),
@@ -48,9 +49,10 @@ func testActorProducer() actor.Producer {
 }
 
 func (a *testActor) Receive(act *actor.Context) {
-	switch act.Message().(type) {
-	case actor.Initialized, actor.Started, actor.Stopped:
-	default:
-		// log.Printf("%T - %+v", act.Message(), act.Message())
+	switch msg := act.Message().(type) {
+	case TestMsg:
+		if strings.Contains(msg.Str, "he") {
+			panic("56")
+		}
 	}
 }

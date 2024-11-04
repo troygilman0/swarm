@@ -10,7 +10,7 @@ import (
 type Initializer func(*actor.Engine) func()
 
 type result struct {
-	round    uint64
+	seed     int64
 	duration time.Duration
 	err      error
 }

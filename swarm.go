@@ -21,6 +21,7 @@ func Run(init Initializer, msgs []any, opts ...Option) error {
 
 	var round uint64
 	var roundsRunning uint64
+	baseSeed := time.Now().UnixNano()
 	results := make(chan result)
 
 	for {
@@ -28,16 +29,17 @@ func Run(init Initializer, msgs []any, opts ...Option) error {
 			if config.numRounds > 0 && round >= config.numRounds && roundsRunning == 0 {
 				break
 			}
-			log.Printf("Starting round %d\n", round)
-			go runRound(opts, round, results)
+			seed := baseSeed + int64(round)
+			log.Printf("Starting round %d with seed %d\n", round, seed)
+			go runRound(opts, seed, results)
 			round++
 			roundsRunning++
 		} else {
 			result := <-results
 			if result.err != nil {
-				return result.err
+				return fmt.Errorf("seed %d resulted in error: %s", result.seed, result.err.Error())
 			}
-			log.Printf("Run round %d in %f seconds\n", result.round, result.duration.Seconds())
+			log.Printf("Round with seed %d finished in %f seconds\n", result.seed, result.duration.Seconds())
 			roundsRunning--
 		}
 	}
@@ -45,12 +47,12 @@ func Run(init Initializer, msgs []any, opts ...Option) error {
 	return nil
 }
 
-func runRound(opts options, round uint64, results chan<- result) {
+func runRound(opts options, seed int64, results chan<- result) {
 	var err error
 	start := time.Now()
 	defer func() {
 		results <- result{
-			round:    round,
+			seed:     seed,
 			duration: time.Since(start),
 			err:      err,
 		}
@@ -61,7 +63,7 @@ func runRound(opts options, round uint64, results chan<- result) {
 		engineConfig: actor.NewEngineConfig(),
 		SimulatorConfig: internal.SimulatorConfig{
 			Done:     done,
-			Seed:     time.Now().UnixNano(),
+			Seed:     seed,
 			NumMsgs:  100,
 			Interval: time.Millisecond,
 		},

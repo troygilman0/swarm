@@ -72,7 +72,7 @@ func (s *simulator) Receive(act *actor.Context) {
 		if s.err != nil {
 			break
 		}
-		s.err = fmt.Errorf("actor %s crashed at msg %d with seed %d", msg.PID.String(), s.msgCount, s.Seed)
+		s.err = fmt.Errorf("actor %s crashed at msg %d", msg.PID.String(), s.msgCount)
 		act.Engine().Stop(act.PID())
 
 	case sendMessagesMsg:
