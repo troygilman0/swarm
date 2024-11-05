@@ -51,7 +51,7 @@ func testActorProducer() actor.Producer {
 func (a *testActor) Receive(act *actor.Context) {
 	switch msg := act.Message().(type) {
 	case TestMsg:
-		if strings.Contains(msg.Str, "he") {
+		if strings.Contains(msg.Str, "hel") {
 			panic("56")
 		}
 	}

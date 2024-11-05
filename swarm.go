@@ -3,6 +3,7 @@ package swarm
 import (
 	"fmt"
 	"log"
+	"math/rand"
 	"swarm/internal"
 	"time"
 
@@ -21,7 +22,7 @@ func Run(init Initializer, msgs []any, opts ...Option) error {
 
 	var round uint64
 	var roundsRunning uint64
-	baseSeed := time.Now().UnixNano()
+	random := rand.New(rand.NewSource(time.Now().UnixNano()))
 	results := make(chan result)
 
 	for {
@@ -29,9 +30,18 @@ func Run(init Initializer, msgs []any, opts ...Option) error {
 			if config.numRounds > 0 && round >= config.numRounds && roundsRunning == 0 {
 				break
 			}
-			seed := baseSeed + int64(round)
-			log.Printf("Starting round %d with seed %d\n", round, seed)
-			go runRound(opts, seed, results)
+			done := make(chan error)
+			roundConfig := options(opts).apply(Config{
+				engineConfig: actor.NewEngineConfig(),
+				SimulatorConfig: internal.SimulatorConfig{
+					Done:     done,
+					Seed:     random.Int63(),
+					NumMsgs:  100,
+					Interval: time.Millisecond,
+				},
+			})
+			log.Printf("Starting round %d with seed %d\n", round, roundConfig.Seed)
+			go runRound(roundConfig, done, results)
 			round++
 			roundsRunning++
 		} else {
@@ -47,27 +57,16 @@ func Run(init Initializer, msgs []any, opts ...Option) error {
 	return nil
 }
 
-func runRound(opts options, seed int64, results chan<- result) {
+func runRound(config Config, done <-chan error, results chan<- result) {
 	var err error
 	start := time.Now()
 	defer func() {
 		results <- result{
-			seed:     seed,
+			seed:     config.Seed,
 			duration: time.Since(start),
 			err:      err,
 		}
 	}()
-
-	done := make(chan error)
-	config := opts.apply(Config{
-		engineConfig: actor.NewEngineConfig(),
-		SimulatorConfig: internal.SimulatorConfig{
-			Done:     done,
-			Seed:     seed,
-			NumMsgs:  100,
-			Interval: time.Millisecond,
-		},
-	})
 
 	if config.SimulatorConfig.Interval == 0 {
 		err = fmt.Errorf("interval cannot be 0")
