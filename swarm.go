@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"strconv"
 	"swarm/internal"
 	"time"
 
@@ -20,6 +21,10 @@ func Run(init Initializer, msgs []any, opts ...Option) error {
 		parallelRounds: 1,
 	})
 
+	if config.SimulatorConfig.Interval == 0 {
+		panic("interval cannot be 0")
+	}
+
 	var round uint64
 	var roundsRunning uint64
 	random := rand.New(rand.NewSource(time.Now().UnixNano()))
@@ -30,18 +35,16 @@ func Run(init Initializer, msgs []any, opts ...Option) error {
 			if config.numRounds > 0 && round >= config.numRounds && roundsRunning == 0 {
 				break
 			}
-			done := make(chan error)
 			roundConfig := options(opts).apply(Config{
 				engineConfig: actor.NewEngineConfig(),
 				SimulatorConfig: internal.SimulatorConfig{
-					Done:     done,
 					Seed:     random.Int63(),
 					NumMsgs:  100,
 					Interval: time.Millisecond,
 				},
 			})
 			log.Printf("Starting round %d with seed %d\n", round, roundConfig.Seed)
-			go runRound(roundConfig, done, results)
+			go runRound(roundConfig, results)
 			round++
 			roundsRunning++
 		} else {
@@ -57,33 +60,54 @@ func Run(init Initializer, msgs []any, opts ...Option) error {
 	return nil
 }
 
-func runRound(config Config, done <-chan error, results chan<- result) {
-	var err error
-	start := time.Now()
-	defer func() {
-		results <- result{
-			seed:     config.Seed,
-			duration: time.Since(start),
-			err:      err,
-		}
-	}()
+func runRound(config Config, results chan<- result) {
+	var (
+		seedStr  = strconv.Itoa(int(config.Seed))
+		start    = time.Now()
+		done     = make(chan struct{})
+		stopping bool
+	)
 
-	if config.SimulatorConfig.Interval == 0 {
-		err = fmt.Errorf("interval cannot be 0")
-		return
-	}
-
-	var engine *actor.Engine
-	engine, err = actor.NewEngine(config.engineConfig)
+	engine, err := actor.NewEngine(config.engineConfig)
 	if err != nil {
-		return
+		panic(err.Error())
 	}
 
-	engine.Spawn(internal.NewSimulatorProducer(config.SimulatorConfig), "swarm-simulator")
+	engine.SpawnFunc(func(act *actor.Context) {
+		switch msg := act.Message().(type) {
+		case actor.Started:
+			act.SpawnChild(internal.NewSimulatorProducer(config.SimulatorConfig), "swarm-simulator", actor.WithID(seedStr))
+
+		case actor.Stopped:
+			close(done)
+
+		case internal.DoneMsg:
+			if !stopping {
+				stopping = true
+				engine.Stop(act.PID())
+				results <- result{
+					seed:     config.Seed,
+					duration: time.Since(start),
+				}
+			}
+
+		case internal.ErrorMsg:
+			if !stopping {
+				stopping = true
+				engine.Stop(act.PID())
+				results <- result{
+					seed:     config.Seed,
+					duration: time.Since(start),
+					err:      msg.Err,
+				}
+			}
+		}
+	}, "swarm-adapter", actor.WithID(seedStr))
 
 	cleanup := config.init(engine)
-	err = <-done
 	if cleanup != nil {
-		cleanup()
+		defer cleanup()
 	}
+
+	<-done
 }

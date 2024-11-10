@@ -17,7 +17,7 @@ func main() {
 		},
 		swarm.WithNumMsgs(1000),
 		swarm.WithParellel(10),
-		swarm.WithInterval(time.Millisecond),
+		swarm.WithInterval(time.Nanosecond),
 	); err != nil {
 		log.Println(err)
 	}

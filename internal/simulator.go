@@ -12,7 +12,6 @@ import (
 )
 
 type SimulatorConfig struct {
-	Done     chan<- error
 	Seed     int64
 	NumMsgs  uint64
 	Interval time.Duration
@@ -25,6 +24,7 @@ type simulator struct {
 	rand     random.Random
 	msgCount uint64
 	pids     []*actor.PID
+	pidsSet  map[*actor.PID]struct{}
 	repeater actor.SendRepeater
 }
 
@@ -43,10 +43,11 @@ func (s *simulator) Receive(act *actor.Context) {
 		s.msgCount = 0
 		s.rand = random.NewRandom(rand.NewSource(s.Seed))
 		s.pids = []*actor.PID{}
+		s.pidsSet = make(map[*actor.PID]struct{})
 
 	case actor.Started:
 		act.Engine().Subscribe(act.PID())
-		s.repeater = act.SendRepeat(act.PID(), sendMessagesMsg{}, s.Interval)
+		s.repeater = act.SendRepeat(act.PID(), sendRandomMsg{}, s.Interval)
 
 	case actor.Stopped:
 		act.Engine().Unsubscribe(act.PID())
@@ -56,28 +57,25 @@ func (s *simulator) Receive(act *actor.Context) {
 			act.Engine().Stop(pid, wg)
 		}
 		wg.Wait()
-		s.Done <- s.err
-		close(s.Done)
 
 	case actor.ActorStartedEvent:
-		if msg.PID == act.PID() {
+		if msg.PID == act.PID() || msg.PID == act.Parent() {
 			break
 		}
 		s.pids = append(s.pids, msg.PID)
+		s.pidsSet[msg.PID] = struct{}{}
 
 	case actor.ActorRestartedEvent:
-		if msg.PID == act.PID() {
+		if _, ok := s.pidsSet[msg.PID]; !ok {
 			break
 		}
-		if s.err != nil {
-			break
-		}
-		s.err = fmt.Errorf("actor %s crashed at msg %d", msg.PID.String(), s.msgCount)
-		act.Engine().Stop(act.PID())
+		act.Send(act.Parent(), ErrorMsg{
+			Err: fmt.Errorf("actor %s crashed at msg %d", msg.PID.String(), s.msgCount),
+		})
 
-	case sendMessagesMsg:
+	case sendRandomMsg:
 		if s.msgCount >= s.NumMsgs {
-			act.Engine().Stop(act.PID())
+			act.Send(act.Parent(), DoneMsg{})
 			break
 		}
 		if len(s.pids) == 0 {
@@ -90,4 +88,10 @@ func (s *simulator) Receive(act *actor.Context) {
 	}
 }
 
-type sendMessagesMsg struct{}
+type DoneMsg struct{}
+
+type ErrorMsg struct {
+	Err error
+}
+
+type sendRandomMsg struct{}
