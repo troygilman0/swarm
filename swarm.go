@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
-	"strconv"
 	"swarm/internal"
 	"time"
 
@@ -62,7 +61,6 @@ func Run(init Initializer, msgs []any, opts ...Option) error {
 
 func runRound(config Config, results chan<- result) {
 	var (
-		seedStr  = strconv.Itoa(int(config.Seed))
 		start    = time.Now()
 		done     = make(chan struct{})
 		stopping bool
@@ -76,7 +74,7 @@ func runRound(config Config, results chan<- result) {
 	engine.SpawnFunc(func(act *actor.Context) {
 		switch msg := act.Message().(type) {
 		case actor.Started:
-			act.SpawnChild(internal.NewSimulatorProducer(config.SimulatorConfig), "swarm-simulator", actor.WithID(seedStr))
+			act.SpawnChild(internal.NewSimulatorProducer(config.SimulatorConfig), "swarm-simulator")
 
 		case actor.Stopped:
 			close(done)
@@ -92,7 +90,7 @@ func runRound(config Config, results chan<- result) {
 				}
 			}
 		}
-	}, "swarm-adapter", actor.WithID(seedStr))
+	}, "swarm-adapter")
 
 	cleanup := config.init(engine)
 	if cleanup != nil {
