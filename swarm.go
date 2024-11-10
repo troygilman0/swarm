@@ -81,17 +81,7 @@ func runRound(config Config, results chan<- result) {
 		case actor.Stopped:
 			close(done)
 
-		case internal.DoneMsg:
-			if !stopping {
-				stopping = true
-				engine.Stop(act.PID())
-				results <- result{
-					seed:     config.Seed,
-					duration: time.Since(start),
-				}
-			}
-
-		case internal.ErrorMsg:
+		case internal.StopMsg:
 			if !stopping {
 				stopping = true
 				engine.Stop(act.PID())

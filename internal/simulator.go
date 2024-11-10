@@ -69,13 +69,13 @@ func (s *simulator) Receive(act *actor.Context) {
 		if _, ok := s.pidsSet[msg.PID]; !ok {
 			break
 		}
-		act.Send(act.Parent(), ErrorMsg{
+		act.Send(act.Parent(), StopMsg{
 			Err: fmt.Errorf("actor %s crashed at msg %d", msg.PID.String(), s.msgCount),
 		})
 
 	case sendRandomMsg:
 		if s.msgCount >= s.NumMsgs {
-			act.Send(act.Parent(), DoneMsg{})
+			act.Send(act.Parent(), StopMsg{})
 			break
 		}
 		if len(s.pids) == 0 {
@@ -88,9 +88,7 @@ func (s *simulator) Receive(act *actor.Context) {
 	}
 }
 
-type DoneMsg struct{}
-
-type ErrorMsg struct {
+type StopMsg struct {
 	Err error
 }
 
