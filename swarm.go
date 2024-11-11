@@ -39,7 +39,7 @@ func Run(init Initializer, msgs []any, opts ...Option) error {
 					Interval: time.Millisecond,
 				},
 			})
-			if config.SimulatorConfig.Interval == 0 {
+			if roundConfig.SimulatorConfig.Interval == 0 {
 				panic("interval cannot be 0")
 			}
 			log.Printf("Starting round %d with seed %d\n", round, roundConfig.Seed)
