@@ -8,7 +8,7 @@ import (
 	"github.com/anthdm/hollywood/actor"
 )
 
-type Initializer func(*actor.Engine) func()
+type Initializer func() func(*actor.Engine) func()
 
 type result struct {
 	seed     int64

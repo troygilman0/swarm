@@ -93,7 +93,7 @@ func runRound(config Config, results chan<- result) {
 		}
 	}, "swarm-adapter")
 
-	cleanup := config.init(engine)
+	cleanup := config.init()(engine)
 	if cleanup != nil {
 		defer cleanup()
 	}

@@ -24,11 +24,13 @@ func main() {
 	}
 }
 
-func initialize(engine *actor.Engine) func() {
-	for range 10 {
-		engine.Spawn(testActorProducer(), "testActor")
+func initialize() func(engine *actor.Engine) func() {
+	return func(engine *actor.Engine) func() {
+		for range 10 {
+			engine.Spawn(testActorProducer(), "testActor")
+		}
+		return nil
 	}
-	return nil
 }
 
 type TestMsg struct {
