@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"math/rand"
 	"reflect"
-	"swarm/internal/random"
 	"sync"
 	"time"
+
+	"github.com/troygilman0/swarm/internal/random"
 
 	"github.com/anthdm/hollywood/actor"
 )

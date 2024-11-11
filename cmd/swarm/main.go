@@ -3,8 +3,9 @@ package main
 import (
 	"log"
 	"strings"
-	"swarm"
 	"time"
+
+	"github.com/troygilman0/swarm"
 
 	"github.com/anthdm/hollywood/actor"
 )

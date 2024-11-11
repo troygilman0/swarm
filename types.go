@@ -1,8 +1,9 @@
 package swarm
 
 import (
-	"swarm/internal"
 	"time"
+
+	"github.com/troygilman0/swarm/internal"
 
 	"github.com/anthdm/hollywood/actor"
 )
