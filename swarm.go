@@ -21,10 +21,6 @@ func Run(init Initializer, msgs []any, opts ...Option) error {
 		parallelRounds: 1,
 	})
 
-	if config.SimulatorConfig.Interval == 0 {
-		panic("interval cannot be 0")
-	}
-
 	var round uint64
 	var roundsRunning uint64
 	random := rand.New(rand.NewSource(time.Now().UnixNano()))
@@ -43,6 +39,9 @@ func Run(init Initializer, msgs []any, opts ...Option) error {
 					Interval: time.Millisecond,
 				},
 			})
+			if config.SimulatorConfig.Interval == 0 {
+				panic("interval cannot be 0")
+			}
 			log.Printf("Starting round %d with seed %d\n", round, roundConfig.Seed)
 			go runRound(roundConfig, results)
 			round++
