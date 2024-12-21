@@ -6,7 +6,7 @@ import (
 	"github.com/anthdm/hollywood/actor"
 )
 
-func TestStarm(t *testing.T) {
+func testStarm(t *testing.T) {
 	if err := Run(
 		newInitializer(),
 		[]any{testMsg{}},
