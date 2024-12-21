@@ -30,9 +30,9 @@ func withMessages(msgs []any) Option {
 	}
 }
 
-func withInitializer(init Initializer) Option {
+func withInitializer(init actor.Producer) Option {
 	return func(c Config) Config {
-		c.init = init
+		c.Initializer = init
 		return c
 	}
 }

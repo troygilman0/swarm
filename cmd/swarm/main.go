@@ -11,11 +11,11 @@ import (
 
 func main() {
 	if err := swarm.Run(
-		initialize,
+		newInitializer(),
 		[]any{
 			TestMsg{},
 		},
-		swarm.WithNumMsgs(1000),
+		swarm.WithNumMsgs(10),
 		swarm.WithParellel(10),
 		swarm.WithInterval(time.Millisecond),
 	); err != nil {
@@ -23,11 +23,21 @@ func main() {
 	}
 }
 
-func initialize(engine *actor.Engine) func() {
-	for range 10 {
-		engine.Spawn(testActorProducer(), "testActor")
+type initializer struct{}
+
+func newInitializer() actor.Producer {
+	return func() actor.Receiver {
+		return &initializer{}
 	}
-	return nil
+}
+
+func (i *initializer) Receive(act *actor.Context) {
+	switch act.Message().(type) {
+	case actor.Initialized:
+		for range 10 {
+			act.Engine().Spawn(testActorProducer(), "testActor")
+		}
+	}
 }
 
 type TestMsg struct {

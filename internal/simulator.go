@@ -5,18 +5,18 @@ import (
 	"math/rand"
 	"reflect"
 	"swarm/internal/random"
-	"sync"
 	"time"
 
 	"github.com/anthdm/hollywood/actor"
 )
 
 type SimulatorConfig struct {
-	Done     chan<- error
-	Seed     int64
-	NumMsgs  uint64
-	Interval time.Duration
-	MsgTypes []reflect.Type
+	Initializer actor.Producer
+	Done        chan<- error
+	Seed        int64
+	NumMsgs     uint64
+	Interval    time.Duration
+	MsgTypes    []reflect.Type
 }
 
 type simulator struct {
@@ -28,7 +28,7 @@ type simulator struct {
 	repeater actor.SendRepeater
 }
 
-func NewSimulatorProducer(config SimulatorConfig) actor.Producer {
+func NewSimulator(config SimulatorConfig) actor.Producer {
 	return func() actor.Receiver {
 		return &simulator{
 			SimulatorConfig: config,
@@ -37,6 +37,7 @@ func NewSimulatorProducer(config SimulatorConfig) actor.Producer {
 }
 
 func (s *simulator) Receive(act *actor.Context) {
+	// log.Printf("%T - %+v\n", act.Message(), act.Message())
 	switch msg := act.Message().(type) {
 	case actor.Initialized:
 		s.err = nil
@@ -46,16 +47,12 @@ func (s *simulator) Receive(act *actor.Context) {
 
 	case actor.Started:
 		act.Engine().Subscribe(act.PID())
+		act.SpawnChild(s.Initializer, "swarm-initializer")
 		s.repeater = act.SendRepeat(act.PID(), sendMessagesMsg{}, s.Interval)
 
 	case actor.Stopped:
 		act.Engine().Unsubscribe(act.PID())
 		s.repeater.Stop()
-		wg := &sync.WaitGroup{}
-		for _, pid := range s.pids {
-			act.Engine().Stop(pid, wg)
-		}
-		wg.Wait()
 		s.Done <- s.err
 		close(s.Done)
 

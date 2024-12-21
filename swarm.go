@@ -10,7 +10,7 @@ import (
 	"github.com/anthdm/hollywood/actor"
 )
 
-func Run(init Initializer, msgs []any, opts ...Option) error {
+func Run(init actor.Producer, msgs []any, opts ...Option) error {
 	opts = append(opts,
 		withInitializer(init),
 		withMessages(msgs),
@@ -79,11 +79,6 @@ func runRound(config Config, done <-chan error, results chan<- result) {
 		return
 	}
 
-	engine.Spawn(internal.NewSimulatorProducer(config.SimulatorConfig), "swarm-simulator")
-
-	cleanup := config.init(engine)
+	engine.Spawn(internal.NewSimulator(config.SimulatorConfig), "swarm-simulator")
 	err = <-done
-	if cleanup != nil {
-		cleanup()
-	}
 }

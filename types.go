@@ -16,7 +16,6 @@ type result struct {
 }
 
 type Config struct {
-	init           Initializer
 	engineConfig   actor.EngineConfig
 	numRounds      uint64
 	parallelRounds uint64
