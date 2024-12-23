@@ -11,11 +11,13 @@ import (
 
 func main() {
 	if err := swarm.Run(
-		newInitializer(),
-		[]any{
-			TestMsg{},
+		swarm.SwarmConfig{
+			Initializer: newInitializer(),
 		},
-		swarm.WithNumMsgs(10),
+		swarm.WithMessages([]any{
+			TestMsg{},
+		}),
+		swarm.WithNumMessages(10),
 		swarm.WithParellel(10),
 		swarm.WithInterval(time.Millisecond),
 	); err != nil {
@@ -35,8 +37,10 @@ func (i *initializer) Receive(act *actor.Context) {
 	switch act.Message().(type) {
 	case actor.Initialized:
 		for range 10 {
+			//act.SpawnChild(testActorProducer(), "testActor")
 			act.Engine().Spawn(testActorProducer(), "testActor")
 		}
+	case actor.Stopped:
 	}
 }
 
@@ -64,5 +68,7 @@ func (a *testActor) Receive(act *actor.Context) {
 		if strings.Contains(msg.Str, "hel") {
 			panic("56")
 		}
+	case actor.Stopped:
+		log.Println("stopping testActor")
 	}
 }

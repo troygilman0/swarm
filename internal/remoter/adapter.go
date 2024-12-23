@@ -8,9 +8,9 @@ import (
 )
 
 type Adapter interface {
-	start(address string, engine *actor.Engine) error
-	stop(address string) *sync.WaitGroup
-	send(pid *actor.PID, msg any, sender *actor.PID)
+	Start(address string, engine *actor.Engine) error
+	Stop(address string) *sync.WaitGroup
+	Send(pid *actor.PID, msg any, sender *actor.PID)
 }
 
 type localAdapter struct {
@@ -24,7 +24,7 @@ func NewLocalAdapter() Adapter {
 	}
 }
 
-func (adapter *localAdapter) start(address string, engine *actor.Engine) error {
+func (adapter *localAdapter) Start(address string, engine *actor.Engine) error {
 	adapter.lock.Lock()
 	defer adapter.lock.Unlock()
 	if _, ok := adapter.engines[address]; ok {
@@ -34,7 +34,7 @@ func (adapter *localAdapter) start(address string, engine *actor.Engine) error {
 	return nil
 }
 
-func (adapter *localAdapter) stop(address string) *sync.WaitGroup {
+func (adapter *localAdapter) Stop(address string) *sync.WaitGroup {
 	adapter.lock.Lock()
 	defer adapter.lock.Unlock()
 	if _, ok := adapter.engines[address]; !ok {
@@ -44,7 +44,7 @@ func (adapter *localAdapter) stop(address string) *sync.WaitGroup {
 	return &sync.WaitGroup{}
 }
 
-func (adapter *localAdapter) send(pid *actor.PID, msg any, sender *actor.PID) {
+func (adapter *localAdapter) Send(pid *actor.PID, msg any, sender *actor.PID) {
 	adapter.lock.RLock()
 	defer adapter.lock.RUnlock()
 	address := pid.GetAddress()

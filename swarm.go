@@ -1,84 +1,89 @@
 package swarm
 
 import (
-	"fmt"
 	"log"
 	"math/rand"
-	"swarm/internal"
+	"strconv"
+	"swarm/internal/remoter"
 	"time"
 
 	"github.com/anthdm/hollywood/actor"
 )
 
-func Run(init actor.Producer, msgs []any, opts ...Option) error {
-	opts = append(opts,
-		withInitializer(init),
-		withMessages(msgs),
-	)
-
-	config := options(opts).apply(Config{
-		parallelRounds: 1,
-	})
-
-	var round uint64
-	var roundsRunning uint64
-	random := rand.New(rand.NewSource(time.Now().UnixNano()))
-	results := make(chan result)
-
-	for {
-		if roundsRunning < config.parallelRounds {
-			if config.numRounds > 0 && round >= config.numRounds && roundsRunning == 0 {
-				break
-			}
-			done := make(chan error)
-			roundConfig := options(opts).apply(Config{
-				engineConfig: actor.NewEngineConfig(),
-				SimulatorConfig: internal.SimulatorConfig{
-					Done:     done,
-					Seed:     random.Int63(),
-					NumMsgs:  100,
-					Interval: time.Millisecond,
-				},
-			})
-			log.Printf("Starting round %d with seed %d\n", round, roundConfig.Seed)
-			go runRound(roundConfig, done, results)
-			round++
-			roundsRunning++
-		} else {
-			result := <-results
-			if result.err != nil {
-				return fmt.Errorf("seed %d resulted in error: %s", result.seed, result.err.Error())
-			}
-			log.Printf("Round with seed %d finished in %f seconds\n", result.seed, result.duration.Seconds())
-			roundsRunning--
-		}
-	}
-
-	return nil
+type swarm struct {
+	SwarmConfig
+	round        uint64
+	activeRounds uint64
+	random       *rand.Rand
+	listenerPID  *actor.PID
+	simulators   map[int64]*actor.PID
 }
 
-func runRound(config Config, done <-chan error, results chan<- result) {
-	var err error
-	start := time.Now()
-	defer func() {
-		results <- result{
-			seed:     config.Seed,
-			duration: time.Since(start),
-			err:      err,
+func newSwarm(config SwarmConfig) actor.Producer {
+	return func() actor.Receiver {
+		return &swarm{
+			SwarmConfig: config,
 		}
-	}()
-
-	if config.SimulatorConfig.Interval == 0 {
-		err = fmt.Errorf("interval cannot be 0")
-		return
 	}
+}
 
-	var engine *actor.Engine
-	engine, err = actor.NewEngine(config.engineConfig)
-	if err != nil {
-		return
+func (s *swarm) Receive(act *actor.Context) {
+	log.Printf("%T - %+v\n", act.Message(), act.Message())
+	switch event := act.Message().(type) {
+	case actor.Initialized:
+		s.round = 0
+		s.activeRounds = 0
+		s.random = rand.New(rand.NewSource(time.Now().UnixNano()))
+		s.listenerPID = nil
+		s.simulators = make(map[int64]*actor.PID)
+
+	case actor.Started:
+		act.Send(act.PID(), startSimulationEvent{})
+
+	case actor.Stopped:
+		act.Send(s.listenerPID, swarmDoneEvent{})
+
+	case registerListenerEvent:
+		s.listenerPID = act.Sender()
+
+	case startSimulationEvent:
+		if s.activeRounds >= s.parallelRounds {
+			return
+		}
+		seed := s.random.Int63()
+		if _, ok := s.simulators[seed]; ok {
+			// retry if seed is taken
+			act.Send(act.PID(), startSimulationEvent{})
+			return
+		}
+		address := strconv.FormatInt(seed, 10)
+		engine, err := actor.NewEngine(actor.NewEngineConfig().WithRemote(remoter.NewLocalRemoter(s.adapter, address)))
+		if err != nil {
+			panic(err)
+		}
+		simulatorPID := engine.Spawn(newSimulator(simulatorConfig{
+			swarmPID:    act.PID(),
+			initializer: s.Initializer,
+			seed:        seed,
+			numMsgs:     s.numMsgs,
+			interval:    s.interval,
+			msgTypes:    s.msgTypes,
+		}), "swarm-simulator")
+		s.simulators[seed] = simulatorPID
+		s.activeRounds++
+		act.Send(act.PID(), startSimulationEvent{})
+
+	case simulationDoneEvent:
+		address := strconv.FormatInt(event.seed, 10)
+		s.adapter.Stop(address).Wait()
+		delete(s.simulators, event.seed)
+		s.activeRounds--
+		act.Send(act.PID(), startSimulationEvent{})
+
+	case simulationErrorEvent:
+		log.Println(event.err)
+		act.Engine().Stop(act.Sender())
+		act.Engine().Stop(act.PID())
+
 	}
-
-	engine.Spawn(internal.NewSimulator(config.SimulatorConfig), "swarm-simulator")
-	err = <-done
 }

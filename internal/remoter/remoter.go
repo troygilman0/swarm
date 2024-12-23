@@ -23,13 +23,13 @@ func (remoter *localRemoter) Address() string {
 }
 
 func (remoter *localRemoter) Send(pid *actor.PID, msg any, sender *actor.PID) {
-	remoter.adapter.send(pid, msg, sender)
+	remoter.adapter.Send(pid, msg, sender)
 }
 
 func (remoter *localRemoter) Start(engine *actor.Engine) error {
-	return remoter.adapter.start(remoter.address, engine)
+	return remoter.adapter.Start(remoter.address, engine)
 }
 
 func (remoter *localRemoter) Stop() *sync.WaitGroup {
-	return remoter.adapter.stop(remoter.address)
+	return remoter.adapter.Stop(remoter.address)
 }
