@@ -13,9 +13,9 @@ import (
 func main() {
 	if err := swarm.Run(
 		newInitializer(),
-		swarm.WithMessages([]any{
+		swarm.WithMessages(
 			TestMsg{},
-		}),
+		),
 		swarm.WithNumMessages(100),
 		swarm.WithParellel(10),
 		swarm.WithInterval(time.Millisecond),
