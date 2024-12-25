@@ -51,8 +51,8 @@ func (s *simulator) Receive(act *actor.Context) {
 	case actor.Stopped:
 		act.Engine().Unsubscribe(act.PID())
 		act.Engine().Stop(s.initializerPID).Wait()
-		act.Send(s.swarmPID, simulationDoneEvent{
-			seed: s.seed,
+		act.Send(s.swarmPID, SimulationDoneEvent{
+			Seed: s.seed,
 		})
 
 	case actor.DeadLetterEvent:
@@ -68,9 +68,9 @@ func (s *simulator) Receive(act *actor.Context) {
 		s.pids = append(s.pids, msg.PID)
 
 	case actor.ActorRestartedEvent:
-		act.Send(s.swarmPID, simulationErrorEvent{
-			seed: s.seed,
-			err:  fmt.Errorf("actor %s crashed at msg %d", msg.PID.String(), s.msgCount),
+		act.Send(s.swarmPID, SimulationErrorEvent{
+			Seed:  s.seed,
+			Error: fmt.Errorf("actor %s crashed at msg %d", msg.PID.String(), s.msgCount),
 		})
 		act.Engine().Stop(act.PID())
 

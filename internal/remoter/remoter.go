@@ -6,30 +6,30 @@ import (
 	"github.com/anthdm/hollywood/actor"
 )
 
-type localRemoter struct {
+type remoter struct {
 	address string
 	adapter Adapter
 }
 
-func NewLocalRemoter(adapter Adapter, address string) actor.Remoter {
-	return &localRemoter{
+func NewRemoter(adapter Adapter, address string) actor.Remoter {
+	return &remoter{
 		address: address,
 		adapter: adapter,
 	}
 }
 
-func (remoter *localRemoter) Address() string {
+func (remoter *remoter) Address() string {
 	return remoter.address
 }
 
-func (remoter *localRemoter) Send(pid *actor.PID, msg any, sender *actor.PID) {
+func (remoter *remoter) Send(pid *actor.PID, msg any, sender *actor.PID) {
 	remoter.adapter.Send(pid, msg, sender)
 }
 
-func (remoter *localRemoter) Start(engine *actor.Engine) error {
+func (remoter *remoter) Start(engine *actor.Engine) error {
 	return remoter.adapter.Start(remoter.address, engine)
 }
 
-func (remoter *localRemoter) Stop() *sync.WaitGroup {
+func (remoter *remoter) Stop() *sync.WaitGroup {
 	return remoter.adapter.Stop(remoter.address)
 }

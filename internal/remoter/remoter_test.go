@@ -10,12 +10,12 @@ import (
 func TestSendMessage(t *testing.T) {
 	adapter := NewLocalAdapter()
 
-	engine1, err := actor.NewEngine(actor.NewEngineConfig().WithRemote(NewLocalRemoter(adapter, "engine-1")))
+	engine1, err := actor.NewEngine(actor.NewEngineConfig().WithRemote(NewRemoter(adapter, "engine-1")))
 	if err != nil {
 		t.Error(err)
 	}
 
-	engine2, err := actor.NewEngine(actor.NewEngineConfig().WithRemote(NewLocalRemoter(adapter, "engine-2")))
+	engine2, err := actor.NewEngine(actor.NewEngineConfig().WithRemote(NewRemoter(adapter, "engine-2")))
 	if err != nil {
 		t.Error(err)
 	}

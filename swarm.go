@@ -40,7 +40,7 @@ func NewSwarm(initializer actor.Producer, adapter remoter.Adapter, opts ...Optio
 
 func (s *swarm) Receive(act *actor.Context) {
 	log.Printf("%s : %T - %+v\n", act.PID().String(), act.Message(), act.Message())
-	switch event := act.Message().(type) {
+	switch msg := act.Message().(type) {
 	case actor.Initialized:
 		s.round = 0
 		s.activeRounds = 0
@@ -49,28 +49,32 @@ func (s *swarm) Receive(act *actor.Context) {
 		s.simulators = make(map[int64]*actor.PID)
 
 	case actor.Started:
-		act.Send(act.PID(), startSimulationEvent{})
+		act.Send(act.PID(), StartSimulation{})
 
 	case actor.Stopped:
-		act.Send(s.listenerPID, swarmDoneEvent{})
+		act.Send(s.listenerPID, SwarmDoneEvent{})
 
-	case registerListenerEvent:
+	case RegisterListener:
 		s.listenerPID = act.Sender()
 
-	case startSimulationEvent:
+	case StartSimulation:
 		if s.activeRounds >= s.parallelRounds {
 			return
 		}
 		seed := s.random.Int63()
 		if _, ok := s.simulators[seed]; ok {
 			// retry if seed is taken
-			act.Send(act.PID(), startSimulationEvent{})
+			act.Send(act.PID(), StartSimulation{})
 			return
 		}
 		address := strconv.FormatInt(seed, 10)
-		engine, err := actor.NewEngine(actor.NewEngineConfig().WithRemote(remoter.NewLocalRemoter(s.adapter, address)))
+		engine, err := actor.NewEngine(actor.NewEngineConfig().WithRemote(remoter.NewRemoter(s.adapter, address)))
 		if err != nil {
-			panic(err)
+			act.Send(s.listenerPID, SimulationErrorEvent{
+				Seed:  seed,
+				Error: err,
+			})
+			return
 		}
 		simulatorPID := engine.Spawn(newSimulator(simulatorConfig{
 			swarmPID:    act.PID(),
@@ -82,20 +86,20 @@ func (s *swarm) Receive(act *actor.Context) {
 		}), "swarm-simulator", actor.WithID(address))
 		s.simulators[seed] = simulatorPID
 		s.activeRounds++
-		act.Send(act.PID(), startSimulationEvent{})
+		act.Send(act.PID(), StartSimulation{})
 
-	case simulationDoneEvent:
-		if _, ok := s.simulators[event.seed]; !ok {
+	case SimulationDoneEvent:
+		if _, ok := s.simulators[msg.Seed]; !ok {
 			return
 		}
-		address := strconv.FormatInt(event.seed, 10)
+		address := strconv.FormatInt(msg.Seed, 10)
 		s.adapter.Stop(address).Wait()
-		delete(s.simulators, event.seed)
+		delete(s.simulators, msg.Seed)
 		s.activeRounds--
-		act.Send(act.PID(), startSimulationEvent{})
+		act.Send(act.PID(), StartSimulation{})
 
-	case simulationErrorEvent:
-		log.Println(event.err)
+	case SimulationErrorEvent:
+		act.Send(s.listenerPID, msg)
 		act.Engine().Stop(act.PID())
 
 	}

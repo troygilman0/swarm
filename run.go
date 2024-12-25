@@ -9,7 +9,7 @@ import (
 func Run(initializer actor.Producer, opts ...Option) error {
 	adapter := remoter.NewLocalAdapter()
 
-	engine, err := actor.NewEngine(actor.NewEngineConfig().WithRemote(remoter.NewLocalRemoter(adapter, "swarm")))
+	engine, err := actor.NewEngine(actor.NewEngineConfig().WithRemote(remoter.NewRemoter(adapter, "swarm")))
 	if err != nil {
 		return err
 	}
@@ -20,8 +20,8 @@ func Run(initializer actor.Producer, opts ...Option) error {
 	engine.SpawnFunc(func(act *actor.Context) {
 		switch act.Message().(type) {
 		case actor.Started:
-			act.Send(swarmPID, registerListenerEvent{})
-		case swarmDoneEvent:
+			act.Send(swarmPID, RegisterListener{})
+		case SwarmDoneEvent:
 			close(done)
 		}
 	}, "swarm-listener")
