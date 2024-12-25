@@ -11,14 +11,12 @@ import (
 
 func main() {
 	if err := swarm.Run(
-		swarm.SwarmConfig{
-			Initializer: newInitializer(),
-		},
+		newInitializer(),
 		swarm.WithMessages([]any{
 			TestMsg{},
 		}),
-		swarm.WithNumMessages(10),
-		swarm.WithParellel(10),
+		swarm.WithNumMessages(1000),
+		swarm.WithParellel(1),
 		swarm.WithInterval(time.Millisecond),
 	); err != nil {
 		log.Println(err)
@@ -34,14 +32,16 @@ func newInitializer() actor.Producer {
 }
 
 func (i *initializer) Receive(act *actor.Context) {
-	switch act.Message().(type) {
-	case actor.Initialized:
-		for range 10 {
-			//act.SpawnChild(testActorProducer(), "testActor")
-			act.Engine().Spawn(testActorProducer(), "testActor")
-		}
-	case actor.Stopped:
-	}
+	// switch act.Message().(type) {
+	// case actor.Initialized:
+	// 	log.Println("starting initializer")
+	// 	for range 10 {
+	// 		// act.SpawnChild(testActorProducer(), "testActor")
+	// 		// act.Engine().Spawn(testActorProducer(), "testActor")
+	// 	}
+	// case actor.Stopped:
+	// 	// log.Println("stopping initializer")
+	// }
 }
 
 type TestMsg struct {
@@ -66,9 +66,7 @@ func (a *testActor) Receive(act *actor.Context) {
 	switch msg := act.Message().(type) {
 	case TestMsg:
 		if strings.Contains(msg.Str, "hel") {
-			panic("56")
+			// panic("56")
 		}
-	case actor.Stopped:
-		log.Println("stopping testActor")
 	}
 }

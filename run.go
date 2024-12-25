@@ -6,19 +6,15 @@ import (
 	"github.com/anthdm/hollywood/actor"
 )
 
-func Run(config SwarmConfig, opts ...Option) error {
-	for _, opt := range opts {
-		config = opt(config)
-	}
+func Run(initializer actor.Producer, opts ...Option) error {
+	adapter := remoter.NewLocalAdapter()
 
-	config.adapter = remoter.NewLocalAdapter()
-
-	engine, err := actor.NewEngine(actor.NewEngineConfig().WithRemote(remoter.NewLocalRemoter(config.adapter, "swarm")))
+	engine, err := actor.NewEngine(actor.NewEngineConfig().WithRemote(remoter.NewLocalRemoter(adapter, "swarm")))
 	if err != nil {
 		return err
 	}
 
-	swarmPID := engine.Spawn(newSwarm(config), "swarm")
+	swarmPID := engine.Spawn(NewSwarm(initializer, adapter, opts...), "swarm")
 
 	done := make(chan struct{})
 	engine.SpawnFunc(func(act *actor.Context) {
@@ -26,7 +22,7 @@ func Run(config SwarmConfig, opts ...Option) error {
 		case actor.Started:
 			act.Send(swarmPID, registerListenerEvent{})
 		case swarmDoneEvent:
-			done <- struct{}{}
+			close(done)
 		}
 	}, "swarm-listener")
 

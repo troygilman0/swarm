@@ -21,10 +21,10 @@ type simulatorConfig struct {
 
 type simulator struct {
 	simulatorConfig
-	rand     random.Random
-	msgCount uint64
-	pids     []*actor.PID
-	repeater actor.SendRepeater
+	rand           random.Random
+	msgCount       uint64
+	pids           []*actor.PID
+	initializerPID *actor.PID
 }
 
 func newSimulator(config simulatorConfig) actor.Producer {
@@ -36,7 +36,7 @@ func newSimulator(config simulatorConfig) actor.Producer {
 }
 
 func (s *simulator) Receive(act *actor.Context) {
-	// log.Printf("%T - %+v\n", act.Message(), act.Message())
+	// log.Printf("%s : %T - %+v\n", act.PID().String(), act.Message(), act.Message())
 	switch msg := act.Message().(type) {
 	case actor.Initialized:
 		s.msgCount = 0
@@ -45,38 +45,48 @@ func (s *simulator) Receive(act *actor.Context) {
 
 	case actor.Started:
 		act.Engine().Subscribe(act.PID())
-		act.SpawnChild(s.initializer, "swarm-initializer")
-		s.repeater = act.SendRepeat(act.PID(), sendMessagesMsg{}, s.interval)
+		s.initializerPID = act.Engine().Spawn(s.initializer, "swarm-initializer")
+		act.Send(act.PID(), sendMessagesMsg{})
 
 	case actor.Stopped:
 		act.Engine().Unsubscribe(act.PID())
-		s.repeater.Stop()
+		act.Engine().Stop(s.initializerPID).Wait()
 		act.Send(s.swarmPID, simulationDoneEvent{
 			seed: s.seed,
 		})
 
+	case actor.DeadLetterEvent:
+		panic(msg)
+
 	case actor.ActorStartedEvent:
 		if msg.PID == act.PID() {
-			break
+			return
+		}
+		if act.Child(msg.PID.GetID()) != nil {
+			return
 		}
 		s.pids = append(s.pids, msg.PID)
 
 	case actor.ActorRestartedEvent:
-		if msg.PID == act.PID() {
-			break
-		}
 		act.Send(s.swarmPID, simulationErrorEvent{
 			seed: s.seed,
 			err:  fmt.Errorf("actor %s crashed at msg %d", msg.PID.String(), s.msgCount),
 		})
+		act.Engine().Stop(act.PID())
 
 	case sendMessagesMsg:
 		if s.msgCount >= s.numMsgs {
+			// act.Engine().Stop(s.initializerPID)
+			// log.Println("SENDING TO", s.swarmPID)
+			// act.Send(s.swarmPID, simulationDoneEvent{
+			// 	seed: s.seed,
+			// })
 			act.Engine().Stop(act.PID())
-			break
+			return
 		}
+		sendWithDelay(act, act.PID(), sendMessagesMsg{}, s.interval)
 		if len(s.pids) == 0 {
-			break
+			return
 		}
 		pid := s.pids[s.rand.Intn(len(s.pids))]
 		newMsgType := s.msgTypes[s.rand.Intn(len(s.msgTypes))]

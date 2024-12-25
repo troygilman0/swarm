@@ -8,35 +8,35 @@ import (
 	"github.com/anthdm/hollywood/actor"
 )
 
-type SwarmConfig struct {
-	Initializer    actor.Producer
+type swarmConfig struct {
+	initializer    actor.Producer
+	adapter        remoter.Adapter
 	msgTypes       []reflect.Type
 	numMsgs        uint64
 	numRounds      uint64
 	parallelRounds uint64
 	interval       time.Duration
 	seed           int64
-	adapter        remoter.Adapter
 }
 
-type Option func(SwarmConfig) SwarmConfig
+type Option func(swarmConfig) swarmConfig
 
 func WithSeed(seed int64) Option {
-	return func(c SwarmConfig) SwarmConfig {
+	return func(c swarmConfig) swarmConfig {
 		c.seed = seed
 		return c
 	}
 }
 
 func WithNumMessages(numMsgs uint64) Option {
-	return func(c SwarmConfig) SwarmConfig {
+	return func(c swarmConfig) swarmConfig {
 		c.numMsgs = numMsgs
 		return c
 	}
 }
 
 func WithMessages(msgs []any) Option {
-	return func(c SwarmConfig) SwarmConfig {
+	return func(c swarmConfig) swarmConfig {
 		for _, msg := range msgs {
 			c.msgTypes = append(c.msgTypes, reflect.TypeOf(msg))
 		}
@@ -44,23 +44,20 @@ func WithMessages(msgs []any) Option {
 	}
 }
 
-func WithNumRounds(numRounds uint64) Option {
-	return func(c SwarmConfig) SwarmConfig {
-		c.numRounds = numRounds
-		return c
-	}
-}
-
 func WithParellel(parallelRounds uint64) Option {
-	return func(c SwarmConfig) SwarmConfig {
-		c.parallelRounds = parallelRounds
+	return func(c swarmConfig) swarmConfig {
+		if parallelRounds > 0 {
+			c.parallelRounds = parallelRounds
+		}
 		return c
 	}
 }
 
 func WithInterval(interval time.Duration) Option {
-	return func(c SwarmConfig) SwarmConfig {
-		c.interval = interval
+	return func(c swarmConfig) swarmConfig {
+		if interval > 0 {
+			c.interval = interval
+		}
 		return c
 	}
 }

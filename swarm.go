@@ -11,7 +11,7 @@ import (
 )
 
 type swarm struct {
-	SwarmConfig
+	swarmConfig
 	round        uint64
 	activeRounds uint64
 	random       *rand.Rand
@@ -19,16 +19,27 @@ type swarm struct {
 	simulators   map[int64]*actor.PID
 }
 
-func newSwarm(config SwarmConfig) actor.Producer {
+func NewSwarm(initializer actor.Producer, adapter remoter.Adapter, opts ...Option) actor.Producer {
+	config := swarmConfig{
+		initializer:    initializer,
+		adapter:        adapter,
+		parallelRounds: 1,
+		interval:       time.Millisecond,
+	}
+
+	for _, opt := range opts {
+		config = opt(config)
+	}
+
 	return func() actor.Receiver {
 		return &swarm{
-			SwarmConfig: config,
+			swarmConfig: config,
 		}
 	}
 }
 
 func (s *swarm) Receive(act *actor.Context) {
-	log.Printf("%T - %+v\n", act.Message(), act.Message())
+	log.Printf("%s : %T - %+v\n", act.PID().String(), act.Message(), act.Message())
 	switch event := act.Message().(type) {
 	case actor.Initialized:
 		s.round = 0
@@ -63,17 +74,20 @@ func (s *swarm) Receive(act *actor.Context) {
 		}
 		simulatorPID := engine.Spawn(newSimulator(simulatorConfig{
 			swarmPID:    act.PID(),
-			initializer: s.Initializer,
+			initializer: s.initializer,
 			seed:        seed,
 			numMsgs:     s.numMsgs,
 			interval:    s.interval,
 			msgTypes:    s.msgTypes,
-		}), "swarm-simulator")
+		}), "swarm-simulator", actor.WithID(address))
 		s.simulators[seed] = simulatorPID
 		s.activeRounds++
 		act.Send(act.PID(), startSimulationEvent{})
 
 	case simulationDoneEvent:
+		if _, ok := s.simulators[event.seed]; !ok {
+			return
+		}
 		address := strconv.FormatInt(event.seed, 10)
 		s.adapter.Stop(address).Wait()
 		delete(s.simulators, event.seed)
@@ -82,7 +96,6 @@ func (s *swarm) Receive(act *actor.Context) {
 
 	case simulationErrorEvent:
 		log.Println(event.err)
-		act.Engine().Stop(act.Sender())
 		act.Engine().Stop(act.PID())
 
 	}
