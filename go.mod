@@ -1,4 +1,4 @@
-module swarm
+module github.com/troygilman0/swarm
 
 go 1.22.0
 
