@@ -5,8 +5,9 @@ import (
 	"math/rand"
 	"reflect"
 	"strconv"
-	"swarm/internal/remoter"
 	"time"
+
+	"github.com/troygilman0/swarm/internal/remoter"
 
 	"github.com/anthdm/hollywood/actor"
 )

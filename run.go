@@ -1,7 +1,7 @@
 package swarm
 
 import (
-	"swarm/internal/remoter"
+	"github.com/troygilman0/swarm/internal/remoter"
 
 	"github.com/anthdm/hollywood/actor"
 )
