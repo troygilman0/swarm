@@ -21,7 +21,7 @@ func WithNumMessages(numMsgs uint64) Option {
 	}
 }
 
-func WithMessages(msgs []any) Option {
+func WithMessages(msgs ...any) Option {
 	return func(c swarmConfig) swarmConfig {
 		for _, msg := range msgs {
 			c.msgTypes = append(c.msgTypes, reflect.TypeOf(msg))
