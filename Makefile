@@ -1,5 +1,5 @@
 test:
-	go test ./... -v
+	go test ./... -count=1 --race -v
 
 dev:
-	go run ./cmd/swarm/.
+	go run ./examples/simple/.

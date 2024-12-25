@@ -2,22 +2,8 @@ package swarm
 
 import (
 	"reflect"
-	"swarm/internal/remoter"
 	"time"
-
-	"github.com/anthdm/hollywood/actor"
 )
-
-type swarmConfig struct {
-	initializer    actor.Producer
-	adapter        remoter.Adapter
-	msgTypes       []reflect.Type
-	numMsgs        uint64
-	numRounds      uint64
-	parallelRounds uint64
-	interval       time.Duration
-	seed           int64
-}
 
 type Option func(swarmConfig) swarmConfig
 
