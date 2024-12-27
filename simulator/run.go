@@ -1,4 +1,4 @@
-package swarm
+package simulator
 
 import (
 	"github.com/troygilman0/swarm/internal/remoter"
@@ -14,13 +14,13 @@ func Run(initializer actor.Producer, opts ...Option) error {
 		return err
 	}
 
-	swarmPID := engine.Spawn(NewSwarm(initializer, adapter, opts...), "swarm")
+	managerPID := engine.Spawn(NewManager(initializer, adapter, opts...), "swarm-manager")
 
 	done := make(chan struct{})
 	engine.SpawnFunc(func(act *actor.Context) {
 		switch act.Message().(type) {
 		case actor.Started:
-			act.Send(swarmPID, RegisterListener{})
+			act.Send(managerPID, RegisterListener{})
 		case SwarmDoneEvent:
 			close(done)
 		}

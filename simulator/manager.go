@@ -1,4 +1,4 @@
-package swarm
+package simulator
 
 import (
 	"log"
@@ -12,7 +12,7 @@ import (
 	"github.com/anthdm/hollywood/actor"
 )
 
-type swarmConfig struct {
+type managerConfig struct {
 	initializer    actor.Producer
 	adapter        remoter.Adapter
 	msgTypes       []reflect.Type
@@ -23,8 +23,8 @@ type swarmConfig struct {
 	seed           int64
 }
 
-type swarm struct {
-	swarmConfig
+type managerActor struct {
+	managerConfig
 	round        uint64
 	activeRounds uint64
 	random       *rand.Rand
@@ -32,8 +32,8 @@ type swarm struct {
 	simulators   map[int64]*actor.PID
 }
 
-func NewSwarm(initializer actor.Producer, adapter remoter.Adapter, opts ...Option) actor.Producer {
-	config := swarmConfig{
+func NewManager(initializer actor.Producer, adapter remoter.Adapter, opts ...Option) actor.Producer {
+	config := managerConfig{
 		initializer:    initializer,
 		adapter:        adapter,
 		parallelRounds: 1,
@@ -45,45 +45,45 @@ func NewSwarm(initializer actor.Producer, adapter remoter.Adapter, opts ...Optio
 	}
 
 	return func() actor.Receiver {
-		return &swarm{
-			swarmConfig: config,
+		return &managerActor{
+			managerConfig: config,
 		}
 	}
 }
 
-func (s *swarm) Receive(act *actor.Context) {
+func (manager *managerActor) Receive(act *actor.Context) {
 	log.Printf("%s : %T - %+v\n", act.PID().String(), act.Message(), act.Message())
 	switch msg := act.Message().(type) {
 	case actor.Initialized:
-		s.round = 0
-		s.activeRounds = 0
-		s.random = rand.New(rand.NewSource(time.Now().UnixNano()))
-		s.listenerPID = nil
-		s.simulators = make(map[int64]*actor.PID)
+		manager.round = 0
+		manager.activeRounds = 0
+		manager.random = rand.New(rand.NewSource(time.Now().UnixNano()))
+		manager.listenerPID = nil
+		manager.simulators = make(map[int64]*actor.PID)
 
 	case actor.Started:
 		act.Send(act.PID(), StartSimulation{})
 
 	case actor.Stopped:
-		act.Send(s.listenerPID, SwarmDoneEvent{})
+		act.Send(manager.listenerPID, SwarmDoneEvent{})
 
 	case RegisterListener:
-		s.listenerPID = act.Sender()
+		manager.listenerPID = act.Sender()
 
 	case StartSimulation:
-		if s.activeRounds >= s.parallelRounds {
+		if manager.activeRounds >= manager.parallelRounds {
 			return
 		}
-		seed := s.random.Int63()
-		if _, ok := s.simulators[seed]; ok {
+		seed := manager.random.Int63()
+		if _, ok := manager.simulators[seed]; ok {
 			// retry if seed is taken
 			act.Send(act.PID(), StartSimulation{})
 			return
 		}
 		address := strconv.FormatInt(seed, 10)
-		engine, err := actor.NewEngine(actor.NewEngineConfig().WithRemote(remoter.NewRemoter(s.adapter, address)))
+		engine, err := actor.NewEngine(actor.NewEngineConfig().WithRemote(remoter.NewRemoter(manager.adapter, address)))
 		if err != nil {
-			act.Send(s.listenerPID, SimulationErrorEvent{
+			act.Send(manager.listenerPID, SimulationErrorEvent{
 				Seed:  seed,
 				Error: err,
 			})
@@ -91,28 +91,28 @@ func (s *swarm) Receive(act *actor.Context) {
 		}
 		simulatorPID := engine.Spawn(newSimulator(simulatorConfig{
 			swarmPID:    act.PID(),
-			initializer: s.initializer,
+			initializer: manager.initializer,
 			seed:        seed,
-			numMsgs:     s.numMsgs,
-			interval:    s.interval,
-			msgTypes:    s.msgTypes,
+			numMsgs:     manager.numMsgs,
+			interval:    manager.interval,
+			msgTypes:    manager.msgTypes,
 		}), "swarm-simulator", actor.WithID(address))
-		s.simulators[seed] = simulatorPID
-		s.activeRounds++
+		manager.simulators[seed] = simulatorPID
+		manager.activeRounds++
 		act.Send(act.PID(), StartSimulation{})
 
 	case SimulationDoneEvent:
-		if _, ok := s.simulators[msg.Seed]; !ok {
+		if _, ok := manager.simulators[msg.Seed]; !ok {
 			return
 		}
 		address := strconv.FormatInt(msg.Seed, 10)
-		s.adapter.Stop(address).Wait()
-		delete(s.simulators, msg.Seed)
-		s.activeRounds--
+		manager.adapter.Stop(address).Wait()
+		delete(manager.simulators, msg.Seed)
+		manager.activeRounds--
 		act.Send(act.PID(), StartSimulation{})
 
 	case SimulationErrorEvent:
-		act.Send(s.listenerPID, msg)
+		act.Send(manager.listenerPID, msg)
 		act.Engine().Stop(act.PID())
 
 	}

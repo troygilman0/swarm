@@ -1,4 +1,4 @@
-package swarm
+package simulator
 
 import (
 	"fmt"
@@ -20,7 +20,7 @@ type simulatorConfig struct {
 	msgTypes    []reflect.Type
 }
 
-type simulator struct {
+type simulatorActor struct {
 	simulatorConfig
 	rand           random.Random
 	msgCount       uint64
@@ -30,30 +30,30 @@ type simulator struct {
 
 func newSimulator(config simulatorConfig) actor.Producer {
 	return func() actor.Receiver {
-		return &simulator{
+		return &simulatorActor{
 			simulatorConfig: config,
 		}
 	}
 }
 
-func (s *simulator) Receive(act *actor.Context) {
+func (simulator *simulatorActor) Receive(act *actor.Context) {
 	// log.Printf("%s : %T - %+v\n", act.PID().String(), act.Message(), act.Message())
 	switch msg := act.Message().(type) {
 	case actor.Initialized:
-		s.msgCount = 0
-		s.rand = random.NewRandom(rand.NewSource(s.seed))
-		s.pids = []*actor.PID{}
+		simulator.msgCount = 0
+		simulator.rand = random.NewRandom(rand.NewSource(simulator.seed))
+		simulator.pids = []*actor.PID{}
 
 	case actor.Started:
 		act.Engine().Subscribe(act.PID())
-		s.initializerPID = act.Engine().Spawn(s.initializer, "swarm-initializer")
+		simulator.initializerPID = act.Engine().Spawn(simulator.initializer, "swarm-initializer")
 		act.Send(act.PID(), sendMessagesMsg{})
 
 	case actor.Stopped:
 		act.Engine().Unsubscribe(act.PID())
-		act.Engine().Stop(s.initializerPID).Wait()
-		act.Send(s.swarmPID, SimulationDoneEvent{
-			Seed: s.seed,
+		act.Engine().Stop(simulator.initializerPID).Wait()
+		act.Send(simulator.swarmPID, SimulationDoneEvent{
+			Seed: simulator.seed,
 		})
 
 	case actor.DeadLetterEvent:
@@ -66,17 +66,17 @@ func (s *simulator) Receive(act *actor.Context) {
 		if act.Child(msg.PID.GetID()) != nil {
 			return
 		}
-		s.pids = append(s.pids, msg.PID)
+		simulator.pids = append(simulator.pids, msg.PID)
 
 	case actor.ActorRestartedEvent:
-		act.Send(s.swarmPID, SimulationErrorEvent{
-			Seed:  s.seed,
-			Error: fmt.Errorf("actor %s crashed at msg %d", msg.PID.String(), s.msgCount),
+		act.Send(simulator.swarmPID, SimulationErrorEvent{
+			Seed:  simulator.seed,
+			Error: fmt.Errorf("actor %s crashed at msg %d", msg.PID.String(), simulator.msgCount),
 		})
 		act.Engine().Stop(act.PID())
 
 	case sendMessagesMsg:
-		if s.msgCount >= s.numMsgs {
+		if simulator.msgCount >= simulator.numMsgs {
 			// act.Engine().Stop(s.initializerPID)
 			// log.Println("SENDING TO", s.swarmPID)
 			// act.Send(s.swarmPID, simulationDoneEvent{
@@ -85,14 +85,14 @@ func (s *simulator) Receive(act *actor.Context) {
 			act.Engine().Stop(act.PID())
 			return
 		}
-		sendWithDelay(act, act.PID(), sendMessagesMsg{}, s.interval)
-		if len(s.pids) == 0 {
+		sendWithDelay(act, act.PID(), sendMessagesMsg{}, simulator.interval)
+		if len(simulator.pids) == 0 {
 			return
 		}
-		pid := s.pids[s.rand.Intn(len(s.pids))]
-		newMsgType := s.msgTypes[s.rand.Intn(len(s.msgTypes))]
-		act.Send(pid, s.rand.Any(newMsgType))
-		s.msgCount++
+		pid := simulator.pids[simulator.rand.Intn(len(simulator.pids))]
+		newMsgType := simulator.msgTypes[simulator.rand.Intn(len(simulator.msgTypes))]
+		act.Send(pid, simulator.rand.Any(newMsgType))
+		simulator.msgCount++
 	}
 }
 

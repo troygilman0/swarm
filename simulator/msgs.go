@@ -1,4 +1,4 @@
-package swarm
+package simulator
 
 type StartSimulation struct{}
 

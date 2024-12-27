@@ -5,20 +5,19 @@ import (
 	"strings"
 	"time"
 
-	"github.com/troygilman0/swarm"
-
 	"github.com/anthdm/hollywood/actor"
+	"github.com/troygilman0/swarm/simulator"
 )
 
 func main() {
-	if err := swarm.Run(
+	if err := simulator.Run(
 		newInitializer(),
-		swarm.WithMessages(
+		simulator.WithMessages(
 			TestMsg{},
 		),
-		swarm.WithNumMessages(100),
-		swarm.WithParellel(10),
-		swarm.WithInterval(time.Millisecond),
+		simulator.WithNumMessages(100),
+		simulator.WithParellel(10),
+		simulator.WithInterval(time.Millisecond),
 	); err != nil {
 		log.Println(err)
 	}
