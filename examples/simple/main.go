@@ -6,18 +6,18 @@ import (
 	"time"
 
 	"github.com/anthdm/hollywood/actor"
-	"github.com/troygilman0/swarm/simulator"
+	"github.com/troygilman0/swarm/sim"
 )
 
 func main() {
-	if err := simulator.Run(
+	if err := sim.Run(
 		newInitializer(),
-		simulator.WithMessages(
+		sim.WithMessages(
 			TestMsg{},
 		),
-		simulator.WithNumMessages(100),
-		simulator.WithParellel(10),
-		simulator.WithInterval(time.Millisecond),
+		sim.WithNumMessages(100),
+		sim.WithParellel(10),
+		sim.WithInterval(time.Millisecond),
 	); err != nil {
 		log.Println(err)
 	}

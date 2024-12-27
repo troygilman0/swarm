@@ -1,4 +1,4 @@
-package simulator
+package sim
 
 import (
 	"github.com/troygilman0/swarm/internal/remoter"

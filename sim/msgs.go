@@ -1,4 +1,4 @@
-package simulator
+package sim
 
 type StartSimulation struct{}
 
