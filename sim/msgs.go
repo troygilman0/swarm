@@ -8,6 +8,10 @@ type startSimulation struct{}
 
 type stopSimulation struct{}
 
+type SimulationStartedEvent struct {
+	Seed int64
+}
+
 type SimulationDoneEvent struct {
 	Seed int64
 }
@@ -20,3 +24,7 @@ type SimulationErrorEvent struct {
 type RegisterListener struct{}
 
 type ManagerDoneEvent struct{}
+
+type ManagerStatusUpdateEvent struct {
+	Status int
+}

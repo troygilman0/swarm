@@ -12,7 +12,7 @@ import (
 )
 
 type simulatorConfig struct {
-	swarmPID    *actor.PID
+	managerPID  *actor.PID
 	initializer actor.Producer
 	seed        int64
 	numMsgs     uint64
@@ -47,12 +47,13 @@ func (simulator *simulatorActor) Receive(act *actor.Context) {
 	case actor.Started:
 		act.Engine().Subscribe(act.PID())
 		simulator.initializerPID = act.Engine().Spawn(simulator.initializer, "swarm-initializer")
+		act.Send(simulator.managerPID, SimulationStartedEvent{Seed: simulator.seed})
 		act.Send(act.PID(), sendMessagesMsg{})
 
 	case actor.Stopped:
 		act.Engine().Unsubscribe(act.PID())
 		act.Engine().Stop(simulator.initializerPID).Wait()
-		act.Send(simulator.swarmPID, SimulationDoneEvent{
+		act.Send(simulator.managerPID, SimulationDoneEvent{
 			Seed: simulator.seed,
 		})
 
@@ -69,7 +70,7 @@ func (simulator *simulatorActor) Receive(act *actor.Context) {
 		simulator.pids = append(simulator.pids, msg.PID)
 
 	case actor.ActorRestartedEvent:
-		act.Send(simulator.swarmPID, SimulationErrorEvent{
+		act.Send(simulator.managerPID, SimulationErrorEvent{
 			Seed:  simulator.seed,
 			Error: fmt.Errorf("actor %s crashed at msg %d", msg.PID.String(), simulator.msgCount),
 		})

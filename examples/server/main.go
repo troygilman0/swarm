@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"net/http"
 
 	"github.com/anthdm/hollywood/actor"
@@ -16,7 +17,15 @@ func main() {
 		panic(err)
 	}
 
-	pid := engine.Spawn(sim.NewManager(newInitializer(), adapter), "manager")
+	pid := engine.Spawn(sim.NewManager(newInitializer(), adapter, sim.WithParellel(10)), "manager")
+
+	engine.SpawnFunc(func(act *actor.Context) {
+		log.Printf("%s : %T - %+v\n", act.PID().String(), act.Message(), act.Message())
+		switch act.Message().(type) {
+		case actor.Started:
+			act.Send(pid, sim.RegisterListener{})
+		}
+	}, "listener")
 
 	if err := http.ListenAndServe(":8080", server.NewSwarmHandler(engine, pid)); err != nil {
 		panic(err)

@@ -1,7 +1,6 @@
 package sim
 
 import (
-	"log"
 	"math/rand"
 	"reflect"
 	"strconv"
@@ -24,9 +23,9 @@ type managerConfig struct {
 }
 
 const (
-	statusIdle = iota
-	statusRunning
-	statusStopping
+	StatusIdle = iota
+	StatusRunning
+	StatusStopping
 )
 
 type managerActor struct {
@@ -59,10 +58,10 @@ func NewManager(initializer actor.Producer, adapter remoter.Adapter, opts ...Opt
 }
 
 func (manager *managerActor) Receive(act *actor.Context) {
-	log.Printf("%s : %T - %+v\n", act.PID().String(), act.Message(), act.Message())
+	// log.Printf("%s : %T - %+v\n", act.PID().String(), act.Message(), act.Message())
 	switch msg := act.Message().(type) {
 	case actor.Initialized:
-		manager.status = statusIdle
+		manager.status = StatusIdle
 		manager.round = 0
 		manager.activeRounds = 0
 		manager.random = rand.New(rand.NewSource(time.Now().UnixNano()))
@@ -73,11 +72,17 @@ func (manager *managerActor) Receive(act *actor.Context) {
 		act.Send(manager.listenerPID, ManagerDoneEvent{})
 
 	case Start:
-		manager.status = statusRunning
+		if manager.status != StatusIdle {
+			return
+		}
+		manager.updateStatus(act, StatusRunning)
 		act.Send(act.PID(), startSimulation{})
 
 	case Stop:
-		manager.status = statusStopping
+		if manager.status != StatusRunning {
+			return
+		}
+		manager.updateStatus(act, StatusStopping)
 		for _, pid := range manager.simulators {
 			act.Send(pid, stopSimulation{})
 		}
@@ -86,6 +91,9 @@ func (manager *managerActor) Receive(act *actor.Context) {
 		manager.listenerPID = act.Sender()
 
 	case startSimulation:
+		if manager.status != StatusRunning {
+			return
+		}
 		if manager.activeRounds >= manager.parallelRounds {
 			return
 		}
@@ -105,7 +113,7 @@ func (manager *managerActor) Receive(act *actor.Context) {
 			return
 		}
 		simulatorPID := engine.Spawn(newSimulator(simulatorConfig{
-			swarmPID:    act.PID(),
+			managerPID:  act.PID(),
 			initializer: manager.initializer,
 			seed:        seed,
 			numMsgs:     manager.numMsgs,
@@ -116,6 +124,12 @@ func (manager *managerActor) Receive(act *actor.Context) {
 		manager.activeRounds++
 		act.Send(act.PID(), startSimulation{})
 
+	case SimulationStartedEvent:
+		if _, ok := manager.simulators[msg.Seed]; !ok {
+			return
+		}
+		act.Send(manager.listenerPID, msg)
+
 	case SimulationDoneEvent:
 		if _, ok := manager.simulators[msg.Seed]; !ok {
 			return
@@ -124,12 +138,14 @@ func (manager *managerActor) Receive(act *actor.Context) {
 		manager.adapter.Stop(address).Wait()
 		delete(manager.simulators, msg.Seed)
 		manager.activeRounds--
+		act.Send(manager.listenerPID, msg)
+
 		switch manager.status {
-		case statusRunning:
+		case StatusRunning:
 			act.Send(act.PID(), startSimulation{})
-		case statusStopping:
+		case StatusStopping:
 			if manager.activeRounds == 0 {
-				manager.status = statusIdle
+				manager.updateStatus(act, StatusIdle)
 			}
 		}
 
@@ -138,4 +154,11 @@ func (manager *managerActor) Receive(act *actor.Context) {
 		act.Engine().Stop(act.PID())
 
 	}
+}
+
+func (manager *managerActor) updateStatus(act *actor.Context, status int) {
+	manager.status = status
+	act.Send(manager.listenerPID, ManagerStatusUpdateEvent{
+		Status: manager.status,
+	})
 }
