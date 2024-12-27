@@ -21,7 +21,7 @@ func Run(initializer actor.Producer, opts ...Option) error {
 		switch act.Message().(type) {
 		case actor.Started:
 			act.Send(managerPID, RegisterListener{})
-		case SwarmDoneEvent:
+		case ManagerDoneEvent:
 			close(done)
 		}
 	}, "swarm-listener")

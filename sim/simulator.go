@@ -56,8 +56,8 @@ func (simulator *simulatorActor) Receive(act *actor.Context) {
 			Seed: simulator.seed,
 		})
 
-	case actor.DeadLetterEvent:
-		panic(msg)
+	case stopSimulation:
+		act.Engine().Stop(act.PID())
 
 	case actor.ActorStartedEvent:
 		if msg.PID == act.PID() {
@@ -77,11 +77,6 @@ func (simulator *simulatorActor) Receive(act *actor.Context) {
 
 	case sendMessagesMsg:
 		if simulator.msgCount >= simulator.numMsgs {
-			// act.Engine().Stop(s.initializerPID)
-			// log.Println("SENDING TO", s.swarmPID)
-			// act.Send(s.swarmPID, simulationDoneEvent{
-			// 	seed: s.seed,
-			// })
 			act.Engine().Stop(act.PID())
 			return
 		}

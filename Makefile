@@ -3,3 +3,6 @@ test:
 
 dev:
 	go run ./examples/simple/.
+
+serv:
+	go run ./examples/server/.

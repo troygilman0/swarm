@@ -23,8 +23,15 @@ type managerConfig struct {
 	seed           int64
 }
 
+const (
+	statusIdle = iota
+	statusRunning
+	statusStopping
+)
+
 type managerActor struct {
 	managerConfig
+	status       int
 	round        uint64
 	activeRounds uint64
 	random       *rand.Rand
@@ -55,29 +62,37 @@ func (manager *managerActor) Receive(act *actor.Context) {
 	log.Printf("%s : %T - %+v\n", act.PID().String(), act.Message(), act.Message())
 	switch msg := act.Message().(type) {
 	case actor.Initialized:
+		manager.status = statusIdle
 		manager.round = 0
 		manager.activeRounds = 0
 		manager.random = rand.New(rand.NewSource(time.Now().UnixNano()))
 		manager.listenerPID = nil
 		manager.simulators = make(map[int64]*actor.PID)
 
-	case actor.Started:
-		act.Send(act.PID(), StartSimulation{})
-
 	case actor.Stopped:
-		act.Send(manager.listenerPID, SwarmDoneEvent{})
+		act.Send(manager.listenerPID, ManagerDoneEvent{})
+
+	case Start:
+		manager.status = statusRunning
+		act.Send(act.PID(), startSimulation{})
+
+	case Stop:
+		manager.status = statusStopping
+		for _, pid := range manager.simulators {
+			act.Send(pid, stopSimulation{})
+		}
 
 	case RegisterListener:
 		manager.listenerPID = act.Sender()
 
-	case StartSimulation:
+	case startSimulation:
 		if manager.activeRounds >= manager.parallelRounds {
 			return
 		}
 		seed := manager.random.Int63()
 		if _, ok := manager.simulators[seed]; ok {
 			// retry if seed is taken
-			act.Send(act.PID(), StartSimulation{})
+			act.Send(act.PID(), startSimulation{})
 			return
 		}
 		address := strconv.FormatInt(seed, 10)
@@ -99,7 +114,7 @@ func (manager *managerActor) Receive(act *actor.Context) {
 		}), "swarm-simulator", actor.WithID(address))
 		manager.simulators[seed] = simulatorPID
 		manager.activeRounds++
-		act.Send(act.PID(), StartSimulation{})
+		act.Send(act.PID(), startSimulation{})
 
 	case SimulationDoneEvent:
 		if _, ok := manager.simulators[msg.Seed]; !ok {
@@ -109,7 +124,14 @@ func (manager *managerActor) Receive(act *actor.Context) {
 		manager.adapter.Stop(address).Wait()
 		delete(manager.simulators, msg.Seed)
 		manager.activeRounds--
-		act.Send(act.PID(), StartSimulation{})
+		switch manager.status {
+		case statusRunning:
+			act.Send(act.PID(), startSimulation{})
+		case statusStopping:
+			if manager.activeRounds == 0 {
+				manager.status = statusIdle
+			}
+		}
 
 	case SimulationErrorEvent:
 		act.Send(manager.listenerPID, msg)

@@ -1,6 +1,12 @@
 package sim
 
-type StartSimulation struct{}
+type Start struct{}
+
+type Stop struct{}
+
+type startSimulation struct{}
+
+type stopSimulation struct{}
 
 type SimulationDoneEvent struct {
 	Seed int64
@@ -13,4 +19,4 @@ type SimulationErrorEvent struct {
 
 type RegisterListener struct{}
 
-type SwarmDoneEvent struct{}
+type ManagerDoneEvent struct{}
