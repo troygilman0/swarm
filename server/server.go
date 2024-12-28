@@ -7,7 +7,14 @@ import (
 	"github.com/troygilman0/swarm/sim"
 )
 
-func NewSwarmHandler(engine *actor.Engine, pid *actor.PID) http.Handler {
+func NewSwarmHandler(initializer actor.Producer, opts ...sim.Option) http.Handler {
+	engine, err := actor.NewEngine(actor.NewEngineConfig())
+	if err != nil {
+		panic(err)
+	}
+
+	pid := engine.Spawn(newControllerActor(initializer, opts...), "controller")
+
 	server := swarmServer{
 		engine: engine,
 		pid:    pid,
@@ -30,11 +37,11 @@ func (server swarmServer) getRootHandler(w http.ResponseWriter, r *http.Request)
 }
 
 func (server swarmServer) postStartHandler(w http.ResponseWriter, r *http.Request) {
-	server.engine.Send(server.pid, sim.Start{})
+	server.engine.Send(server.pid, start{})
 	w.WriteHeader(http.StatusOK)
 }
 
 func (server swarmServer) postStopHandler(w http.ResponseWriter, r *http.Request) {
-	server.engine.Send(server.pid, sim.Stop{})
+	server.engine.Send(server.pid, stop{})
 	w.WriteHeader(http.StatusOK)
 }

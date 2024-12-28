@@ -6,14 +6,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/troygilman0/swarm/internal/remoter"
-
 	"github.com/anthdm/hollywood/actor"
 )
 
 type managerConfig struct {
 	initializer    actor.Producer
-	adapter        remoter.Adapter
 	msgTypes       []reflect.Type
 	numMsgs        uint64
 	numRounds      uint64
@@ -22,15 +19,8 @@ type managerConfig struct {
 	seed           int64
 }
 
-const (
-	StatusIdle = iota
-	StatusRunning
-	StatusStopping
-)
-
 type managerActor struct {
 	managerConfig
-	status       int
 	round        uint64
 	activeRounds uint64
 	random       *rand.Rand
@@ -38,10 +28,9 @@ type managerActor struct {
 	simulators   map[int64]*actor.PID
 }
 
-func NewManager(initializer actor.Producer, adapter remoter.Adapter, opts ...Option) actor.Producer {
+func NewManager(initializer actor.Producer, opts ...Option) actor.Producer {
 	config := managerConfig{
 		initializer:    initializer,
-		adapter:        adapter,
 		parallelRounds: 1,
 		interval:       time.Millisecond,
 	}
@@ -58,42 +47,21 @@ func NewManager(initializer actor.Producer, adapter remoter.Adapter, opts ...Opt
 }
 
 func (manager *managerActor) Receive(act *actor.Context) {
-	// log.Printf("%s : %T - %+v\n", act.PID().String(), act.Message(), act.Message())
 	switch msg := act.Message().(type) {
 	case actor.Initialized:
-		manager.status = StatusIdle
 		manager.round = 0
 		manager.activeRounds = 0
 		manager.random = rand.New(rand.NewSource(time.Now().UnixNano()))
 		manager.listenerPID = nil
 		manager.simulators = make(map[int64]*actor.PID)
 
-	case actor.Stopped:
-		act.Send(manager.listenerPID, ManagerDoneEvent{})
-
-	case Start:
-		if manager.status != StatusIdle {
-			return
-		}
-		manager.updateStatus(act, StatusRunning)
+	case actor.Started:
 		act.Send(act.PID(), startSimulation{})
-
-	case Stop:
-		if manager.status != StatusRunning {
-			return
-		}
-		manager.updateStatus(act, StatusStopping)
-		for _, pid := range manager.simulators {
-			act.Send(pid, stopSimulation{})
-		}
 
 	case RegisterListener:
 		manager.listenerPID = act.Sender()
 
 	case startSimulation:
-		if manager.status != StatusRunning {
-			return
-		}
 		if manager.activeRounds >= manager.parallelRounds {
 			return
 		}
@@ -103,23 +71,13 @@ func (manager *managerActor) Receive(act *actor.Context) {
 			act.Send(act.PID(), startSimulation{})
 			return
 		}
-		address := strconv.FormatInt(seed, 10)
-		engine, err := actor.NewEngine(actor.NewEngineConfig().WithRemote(remoter.NewRemoter(manager.adapter, address)))
-		if err != nil {
-			act.Send(manager.listenerPID, SimulationErrorEvent{
-				Seed:  seed,
-				Error: err,
-			})
-			return
-		}
-		simulatorPID := engine.Spawn(newSimulator(simulatorConfig{
-			managerPID:  act.PID(),
+		simulatorPID := act.SpawnChild(newSimulator(simulatorConfig{
 			initializer: manager.initializer,
 			seed:        seed,
 			numMsgs:     manager.numMsgs,
 			interval:    manager.interval,
 			msgTypes:    manager.msgTypes,
-		}), "swarm-simulator", actor.WithID(address))
+		}), "swarm-simulator", actor.WithID(strconv.FormatInt(seed, 10)))
 		manager.simulators[seed] = simulatorPID
 		manager.activeRounds++
 		act.Send(act.PID(), startSimulation{})
@@ -134,31 +92,14 @@ func (manager *managerActor) Receive(act *actor.Context) {
 		if _, ok := manager.simulators[msg.Seed]; !ok {
 			return
 		}
-		address := strconv.FormatInt(msg.Seed, 10)
-		manager.adapter.Stop(address).Wait()
 		delete(manager.simulators, msg.Seed)
 		manager.activeRounds--
 		act.Send(manager.listenerPID, msg)
-
-		switch manager.status {
-		case StatusRunning:
-			act.Send(act.PID(), startSimulation{})
-		case StatusStopping:
-			if manager.activeRounds == 0 {
-				manager.updateStatus(act, StatusIdle)
-			}
-		}
+		act.Send(act.PID(), startSimulation{})
 
 	case SimulationErrorEvent:
 		act.Send(manager.listenerPID, msg)
 		act.Engine().Stop(act.PID())
 
 	}
-}
-
-func (manager *managerActor) updateStatus(act *actor.Context, status int) {
-	manager.status = status
-	act.Send(manager.listenerPID, ManagerStatusUpdateEvent{
-		Status: manager.status,
-	})
 }

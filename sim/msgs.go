@@ -1,9 +1,5 @@
 package sim
 
-type Start struct{}
-
-type Stop struct{}
-
 type startSimulation struct{}
 
 type stopSimulation struct{}
@@ -27,4 +23,8 @@ type ManagerDoneEvent struct{}
 
 type ManagerStatusUpdateEvent struct {
 	Status int
+}
+
+type simulationEvent struct {
+	event any
 }
