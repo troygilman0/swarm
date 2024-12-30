@@ -2,6 +2,8 @@ package server
 
 import (
 	"net/http"
+	"os"
+	"path/filepath"
 
 	"github.com/anthdm/hollywood/actor"
 	"github.com/troygilman0/swarm/sim"
@@ -34,6 +36,15 @@ type swarmServer struct {
 }
 
 func (server swarmServer) getRootHandler(w http.ResponseWriter, r *http.Request) {
+	buildDir := "server/ui/build/client" // Path to Remix build output
+	remixPath := filepath.Join(buildDir, r.URL.Path)
+
+	if _, err := os.Stat(remixPath); os.IsNotExist(err) {
+		http.Redirect(w, r, "/", http.StatusSeeOther)
+		return
+	}
+
+	http.ServeFile(w, r, remixPath)
 }
 
 func (server swarmServer) postStartHandler(w http.ResponseWriter, r *http.Request) {
